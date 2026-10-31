@@ -1,0 +1,127 @@
+{
+  "name": "!Tertis",
+  "upstream": {
+    "base": "https://raw.githubusercontent.com/merlinorg/trts/c3243ec8fe0335b2aa85d1760f9aa261f219d340/",
+    "files": {
+      "Sprites": {
+        "path": "adfs/!Tertis/!Sprites,ff9",
+        "sha256": "66b14b143e13b8bb7284bd0ba6355565266221a1973677776fc6f704e09c69c1"
+      },
+      "Code": {
+        "path": "adfs/!Tertis/Data/TertisCode,ffd",
+        "sha256": "537214de3d8925ff7e77fcf9e3a6fd2eb2064f1a01026adf323d2f77b3fe4d21"
+      },
+      "Templates": {
+        "path": "adfs/!Tertis/Data/Templates,fec",
+        "sha256": "72b893368b1e70dc7e5426620e9d7113ed9e8c17f8d08feca87704014d8455ff"
+      },
+      "AllMods": {
+        "path": "adfs/!Tertis/Data/AllMods,ffd",
+        "sha256": "53b373265560a2e283715a69e0a77b588dcc3f9959ed1e4ff9edae45ac7b58bf"
+      },
+      "BindleOne": {
+        "path": "adfs/!Tertis/Data/BindleOne,ffd",
+        "sha256": "4041c4d13d95ce4eb6b4fb017324697d29bee194a1845b988cf8ef6a3deab3cd"
+      },
+      "BindleTwo": {
+        "path": "adfs/!Tertis/Data/BindleTwo,ffd",
+        "sha256": "6aab1cd54045bebaf5b662fce9f9e68db6e17521113ff645965fb2b0d7e36761"
+      },
+      "FootBall": {
+        "path": "adfs/!Tertis/Data/FootBall,ffd",
+        "sha256": "9f6c7919d14072adeed4d4fd58917c535d44ea66d4cc9ebca05a527c741c9fad"
+      },
+      "HiScors": {
+        "path": "adfs/!Tertis/Data/!HiScors,ffd",
+        "sha256": "be49318bcd2c4afe59d12eeb57d92893127dfa671e41a01ebeae43a58c26dffd"
+      },
+      "Keys": {
+        "path": "adfs/!Tertis/Data/!Keys,ffd",
+        "sha256": "4ed04063b010ebc1421b8c163ef69f0c0f67d490475ee449d9588faa943806f6"
+      }
+    }
+  },
+  "files": [
+    {
+      "name": "!Run",
+      "type": "feb",
+      "local": "!Run"
+    },
+    {
+      "name": "Screen",
+      "type": "fff",
+      "local": "Screen"
+    },
+    {
+      "name": "!Sprites",
+      "type": "ff9",
+      "upstream": "Sprites"
+    },
+    {
+      "name": "!Help",
+      "type": "fff",
+      "local": "!Help"
+    },
+    {
+      "name": "!RunImage",
+      "load": "0x267FC",
+      "exec": "0x749FC",
+      "upstream": "Code",
+      "unpack": "scorpress"
+    },
+    {
+      "name": "Data.Templates",
+      "type": "fec",
+      "upstream": "Templates"
+    },
+    {
+      "name": "Data.AllMods",
+      "type": "ffd",
+      "upstream": "AllMods"
+    },
+    {
+      "name": "Data.BindleOne",
+      "type": "ffd",
+      "upstream": "BindleOne"
+    },
+    {
+      "name": "Data.BindleTwo",
+      "type": "ffd",
+      "upstream": "BindleTwo"
+    },
+    {
+      "name": "Data.FootBall",
+      "type": "ffd",
+      "upstream": "FootBall"
+    },
+    {
+      "name": "Data.!HiScors",
+      "type": "ffd",
+      "upstream": "HiScors"
+    },
+    {
+      "name": "Data.!Keys",
+      "type": "ffd",
+      "upstream": "Keys"
+    }
+  ],
+  "code": {
+    "file": "!RunImage",
+    "seeds": [],
+    "modules": {
+      "file": "Data.AllMods",
+      "base": "0x8100",
+      "count": 9
+    },
+    "pad": {
+      "left": "0x48",
+      "right": "0x4A",
+      "up": "0x27",
+      "a": "0x49",
+      "down": "0x65",
+      "b": "0x65",
+      "x": "0x0C",
+      "start": "0x5F"
+    }
+  }
+}

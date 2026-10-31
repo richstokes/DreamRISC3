@@ -539,6 +539,14 @@ void mach_key(int row, int col, int down)
 	kb.tail = next;
 }
 
+static const u8 *app_pad, *pad_map;
+
+/* Key codes for the controller while an app that wants them runs, or null */
+const u8 *mach_pad_map(void)
+{
+	return pad_map;
+}
+
 void mach_mouse(int dx, int dy, int buttons)
 {
 	int changed = buttons ^ kb.mouse_buttons, b;
@@ -1040,6 +1048,7 @@ static block_fn app_find(u32 pc, u32 word)
 			if (b->key == pc) {
 				if (ov_header->guard[slot] == word) {
 					app_frame_us = a->frame_us;
+					app_pad = a->pad[0] == PAD_NONE ? 0 : a->pad;
 					return b->fn;
 				}
 				break;
@@ -1283,6 +1292,8 @@ static void machine_tick(void)
 	if (now >= next_frame_us) {
 		next_frame_us = now + (app_frame_us ? app_frame_us : 20000);
 		app_frame_us = 0;
+		pad_map = app_pad;
+		app_pad = 0;
 		flyback_end_us = now + 2000;
 		flyback = 1;
 		ioc.irqa |= IRQA_VBLANK;

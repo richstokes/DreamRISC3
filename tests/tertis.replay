@@ -1,0 +1,20 @@
+# Open Apps, launch !Tertis, start a game, move and drop a piece.
+70 move -1000 1000
+74 move 55 -23
+76 button 1
+76.2 button 0
+84 move -1000 1000
+88 move 217 -207
+90 button 1
+90.1 button 0
+90.3 button 1
+90.4 button 0
+112 shot build/s1.ppm
+114 key 5 15 1
+114.2 key 5 15 0
+122 shot build/s2.ppm
+122.5 key 4 8 1
+122.7 key 4 8 0
+123 key 6 5 1
+123.2 key 6 5 0
+130 shot build/s3.ppm

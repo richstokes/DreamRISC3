@@ -1,0 +1,19 @@
+# Launch !Tertis, quit to its icon bar icon with Q, and go back in from there.
+70 move -1000 1000
+74 move 55 -23
+76 button 1
+76.2 button 0
+84 move -1000 1000
+88 move 217 -207
+90 button 1
+90.1 button 0
+90.3 button 1
+90.4 button 0
+112 key 2 7 1
+112.2 key 2 7 0
+124 shot build/x1.ppm
+125 move -1000 1000
+128 move 355 -23
+130 button 1
+130.1 button 0
+150 shot build/x2.ppm

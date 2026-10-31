@@ -1,0 +1,9 @@
+Tertis 2.05, (C) 1993 SICK: Merlin Hughes, Conrad Hughes and Andrew Block.
+GPL-3.0-or-later. Recompiled for DreamRISC from the ARM binary.
+https://github.com/merlinorg/trts
+
+Space plays. Keypad 4 and 6 move, 5 rotates, 0 drops, F1 pauses, F12 ends the
+game and Q quits from the title.
+On a controller: D-pad left and right move, A rotates, down or B drops,
+Start plays, X ends the game, up quits from the title. Y is Return.
+High scores do not save, as the app lives in ROM.

@@ -51,6 +51,8 @@ Decision: extend the Apps folder, not a new filing system. A virtual drive would
 
 App units are small enough to spend code on speed. Each is one file at `-O2`, memory access and `LDM`/`STM` are inline, and returns go through a direct map. On the console that took Lander's heavy scene from 25 to ~48 frames/s, worst case 17 to 40, for 47KB to 93KB of unit, which only exists in memory while the app runs.
 
+Apps can be far bigger than Lander. Tertis has ~20k instructions, or ~840KB of unit against the 1.1MB region, and code from `ADD`/`SUB` address pairs and `STMFD ...,lr` prologues is walked as well. Everything translated flow dispatches to has to be an entry too, as one failed lookup marks the app as stopped.
+
 Lander's physics run per frame, with only the vsync wait to limit them, so that speed made it far too fast. `code.frame_us` sets the app's vertical sync period, without touching OS timers. Lander uses 25Hz. An 8MHz ARM2 would manage ~15 frames/s going by ~150-290K ARM instructions a frame at ~4 MIPS, which is an estimate and not a measurement on real Acorn hardware, so it's probably still a bit quicker than the original. Open question: does it feel right on a pad?
 
 ## Storage
@@ -190,6 +192,10 @@ Lander on the console (10/31): 124-125 game frames per 5s for a whole scripted f
 The video output was checked from a framebuffer dump in Flycast (`HW_DUMP=1` and `tools/fbdump.py`): full width, correct colours, matching the harness. It is still not a real TV. The dump also found a line that checksums cannot see, as they only cover guest memory: a line hash built on rotates cancelled on solid 256 pixel fills and left stale pixels.
 
 Console and harness checkpoints stop matching in Lander once it moves, because replays run on wall time and the frame the game has reached differs. Static scenes matched.
+
+Tertis in Flycast (10/31): launched from Apps and played by script through to a framebuffer dump, same score as the harness. ~250 frames per 5s with the sound ring flowing and no gaps during play, with its voice modules running through the RAM table. Real hardware is untested, and nobody has listened to it, only measured the recording on the harness. The controller map is untested too, as replays drive keys and mouse.
+
+Overlay files are padded to whole sectors. In Flycast a read of `ov_4.bin`'s short last sector never returned, with sound or without. No idea why, as `ov_3.bin` had a short tail and loaded fine, and padding fixed it, so it might be worth a look down the road.
 
 ## Next Steps
 

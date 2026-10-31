@@ -11,7 +11,18 @@ Neither part is loaded at boot. Pack pages stream through the ROM page cache whe
 - `name`: application folder, listed under `Apps`
 - `upstream`: files to download, pinned by commit and sha256
 - `files`: folder contents, from `local` files here, `upstream` keys or `basic` text to tokenise, with a filetype or a load and exec address
+- `files[].unpack`: set to `scorpress` to store the file unpacked, for code the app would decompress itself. Names can hold a subfolder, as in `Data.AllMods`
 - `code.file`: the file holding ARM code, which must have `load` and `exec`
 - `code.seeds`: extra entry points, as `tools/converge.sh` finds them
 - `code.tables`: tables of code pointers, as `[address, count]`
 - `code.frame_us`: vertical sync period while the app runs, for games whose speed depends on frame rate. Lander runs at 25Hz. An 8MHz ARM2 managed ~15 frames/s by instruction count, so raise this for a slower, closer game
+- `code.modules`: `file`, `base` and `count` for voice modules the app inserts in place from a packed file. Their words go in the RAM table, as they run from the app's memory
+- `code.pad`: key codes (row in the high nibble) for `left`, `right`, `up`, `down`, `a`, `b`, `x` and `start` on the controller, for games with no use for a pointer. Without it the controller stays a mouse
+
+Code the static walk misses shows up as "no native code" on the harness. Inside the app's own image, add the address to `code.seeds`. `tools/converge.sh` only knows about ROM and RAM words, so it will fill `trace/ramwords.txt` with junk if pointed at those.
+
+## Tertis
+
+We skip its launcher, `!RunImage` in the upstream app. That's a splash screen and a ScorPress decompressor, so we unpack `TertisCode` at build time (`tools/scorpress.py`) and ship that as `!RunImage`. `!Run` does the launcher's other job, setting the screen to 160K. Doing it from BASIC is the only way that's simple, as `*ChangeDynamicArea` has no screen option on 3.11.
+
+Of note is that `adfs/Code/TetrisCode` upstream is a different build from the one that shipped, so don't use it. The launcher's exec address, `0x749F4`, sits 8 bytes ahead of the code at `0x749FC`, on two words that do nothing. We enter at the code.

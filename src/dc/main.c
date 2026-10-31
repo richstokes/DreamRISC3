@@ -656,10 +656,28 @@ static void replay_step(int *dx, int *dy, int *buttons)
 
 static u32 pad_keys;
 
+/* An app can turn the controller into keys, for games with no use for a pointer */
+static void pad_app(cont_state_t *c, const u8 *map)
+{
+	static const u32 masks[PAD_BUTTONS] = {CONT_DPAD_LEFT, CONT_DPAD_RIGHT, CONT_DPAD_UP,
+		CONT_DPAD_DOWN, CONT_A, CONT_B, CONT_X, CONT_START};
+	static u8 held[PAD_BUTTONS];
+	int i;
+	for (i = 0; i < PAD_BUTTONS; i++) {
+		u8 code = map ? map[i] : held[i] ? held[i] - 1 : PAD_NONE;
+		int down = map && c && (c->buttons & masks[i]);
+		if (code == PAD_NONE || !!held[i] == down)
+			continue;
+		mach_key(code >> 4, code & 15, down);
+		held[i] = down ? code + 1 : 0;
+	}
+}
+
 void plat_poll_input(void)
 {
 	int dx = 0, dy = 0, buttons = 0;
 	maple_device_t *dev = maple_enum_type(0, MAPLE_FUNC_MOUSE);
+	const u8 *map = mach_pad_map();
 	poll_keyboard();
 	if (dev) {
 		mouse_state_t *m = maple_dev_status(dev);
@@ -678,18 +696,23 @@ void plat_poll_input(void)
 		if (c) {
 			dx += c->joyx / 24;
 			dy += c->joyy / 24;
-			if (c->buttons & CONT_DPAD_LEFT) dx -= 4;
-			if (c->buttons & CONT_DPAD_RIGHT) dx += 4;
-			if (c->buttons & CONT_DPAD_UP) dy -= 4;
-			if (c->buttons & CONT_DPAD_DOWN) dy += 4;
-			if (c->buttons & CONT_A) buttons |= 1;
-			if (c->buttons & CONT_B) buttons |= 2;
-			if (c->buttons & CONT_X) buttons |= 4;
+			if (!map) {
+				if (c->buttons & CONT_DPAD_LEFT) dx -= 4;
+				if (c->buttons & CONT_DPAD_RIGHT) dx += 4;
+				if (c->buttons & CONT_DPAD_UP) dy -= 4;
+				if (c->buttons & CONT_DPAD_DOWN) dy += 4;
+				if (c->buttons & CONT_A) buttons |= 1;
+				if (c->buttons & CONT_B) buttons |= 2;
+				if (c->buttons & CONT_X) buttons |= 4;
+			}
 		}
 	}
+	pad_app(dev ? maple_dev_status(dev) : 0, map);
 	if (dev) {
 		cont_state_t *c = maple_dev_status(dev);
 		u32 now = c ? c->buttons & (CONT_START | CONT_Y) : 0;
+		if (map)
+			now &= ~CONT_START;
 		if ((now ^ pad_keys) & CONT_START)
 			mach_key(0, 0, !!(now & CONT_START)); /* Escape */
 		if ((now ^ pad_keys) & CONT_Y)

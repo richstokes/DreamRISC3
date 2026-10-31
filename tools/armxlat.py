@@ -12,7 +12,8 @@ from pathlib import Path
 import re
 
 from mkapps import load_apps
-from romscan import ENTRIES, ROM_BASE, SKIP_MODULES, find_chain, module_info, sweep, walk, word
+from romscan import ENTRIES, ROM_BASE, SKIP_MODULES, find_chain, module_info, plausible, sweep, walk, word
+from scorpress import unpack
 
 MASK26 = 0x3FFFFFC
 # Code outside the boot trace in these modules lives on disc, one unit in memory at
@@ -571,6 +572,8 @@ def app_code(app):
     seeds = [exec_addr - base] + [int(s, 16) - base for s in app["code"]["seeds"]]
     for table, count in app["code"].get("tables", []):
         seeds += [word(image, int(table, 16) - base + n * 4) - base for n in range(count)]
+    seeds += [o for o in range(0, len(image) - 3, 4)  # STMFD sp!,{..,lr}
+              if word(image, o) & 0xFFFF4000 == 0xE92D4000 and plausible(image, o)]
     ENTRIES.clear()
     code = walk(image, seeds, base)
     lead = leaders(image, code, set(seeds), base)
@@ -585,7 +588,30 @@ def app_code(app):
         i = word(image, o)
         if (i >> 25) & 7 == 5 and base + o + 8 + (((i & 0xFFFFFF) ^ 0x800000) - 0x800000) * 4 <= base + o:
             entries.add(base + o + 8 + (((i & 0xFFFFFF) ^ 0x800000) - 0x800000) * 4)
+    for _, _, src in funcs:  # flow that goes through dispatch, such as after TEQP
+        entries.update(int(pc, 16) for pc in re.findall(r"dispatch\((0x[0-9a-f]+)u\)", "\n".join(src)))
     return base, base + len(image), exec_addr, word(image, exec_addr - base), funcs, len(code), entries & known
+
+
+def pad_keys(app):
+    """The app's controller buttons as key codes, in the order ov_app_t holds them."""
+    pad = app["code"].get("pad", {})
+    names = ("left", "right", "up", "down", "a", "b", "x", "start")
+    return ",".join(pad.get(name, "0xFF") for name in names)
+
+
+def voice_words(app):
+    """Instruction words of modules an app inserts from a packed file, in place."""
+    spec = app["code"].get("modules")
+    if not spec:
+        return set()
+    data = unpack(next(e for e in app["files"] if e["name"] == spec["file"])["data"])
+    seeds = []
+    for n in range(spec["count"]):
+        module = word(data, n * 4)
+        seeds += [module + word(data, module + slot) for slot in (4, 8)]
+        seeds += [module + 0x160 + slot * 4 for slot in range(7)]  # the voice's entry branches
+    return {word(data, o) for o in walk(data, seeds, int(spec["base"], 16))}
 
 
 def hash_table(entries, name):
@@ -720,6 +746,8 @@ def main():
             line = line.split("#")[0].strip()
             if line:
                 words.add(int(line, 16))
+    for app in apps:
+        words |= voice_words(app)
     # Sound voice modules run from RAM, and their code is known ahead of time.
     # Identical words share one routine.
     for m in (module_info(rom, offset) for offset in find_chain(rom)):
@@ -765,8 +793,9 @@ def main():
     lines.append(f"}};\nconst u32 ov_range_count={len(ranges)}u;\nconst u32 ov_units={units}u;\n")
     lines.append(f"const ov_app_t ov_apps[{len(app_units) + 1}]={{\n")
     lines += [f"{{{u[0]:#x}u,{u[1]:#x}u,{u[2]:#x}u,{u[3]:#x}u,{first_app + i},"
-              f"{apps[i]['code'].get('frame_us', 20000)}}},\n" for i, u in enumerate(app_units)]
-    lines.append(f"{{0,0,0,0,0,0}}}};\nconst u32 ov_app_count={len(app_units)}u;\n")
+              f"{apps[i]['code'].get('frame_us', 20000)},{{{pad_keys(apps[i])}}}}},\n"
+              for i, u in enumerate(app_units)]
+    lines.append(f"{{0,0,0,0,0,0,{{0}}}}}};\nconst u32 ov_app_count={len(app_units)}u;\n")
     lines.append(f"const u32 rom_ext_pages={(len(image) - ROM_BYTES) // 0x8000}u;\n")
     for index in range(len(OVERLAYS)):
         unit_funcs = [f for f in funcs if f[2] == index]

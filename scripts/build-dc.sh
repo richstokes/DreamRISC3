@@ -22,6 +22,8 @@ for table in build/dc/ov_*_table.o; do
   sh-elf-ld -T tools/overlay.ld --defsym=REGION="$region" --just-symbols=build/dreamrisc.elf \
     "$table" build/dc/ov_"$unit"_[0-9]*.o -o build/ov_"$unit".elf
   sh-elf-objcopy -O binary build/ov_"$unit".elf build/disc/ov_"$unit".bin
+  # Whole sectors: a read of ov_4's short last sector never returned in Flycast
+  truncate -s %2048 build/disc/ov_"$unit".bin
   size=$(wc -c < build/disc/ov_"$unit".bin)
   echo "overlay $unit: $size bytes"
   [ "$size" -le $((bytes)) ] || { echo "overlay $unit does not fit in $bytes" >&2; exit 1; }

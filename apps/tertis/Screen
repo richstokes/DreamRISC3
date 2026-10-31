@@ -1,0 +1,2 @@
+SYS "OS_ReadDynamicArea",2 TO ,size%
+SYS "OS_ChangeDynamicArea",2,163840-size%

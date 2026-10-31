@@ -1,0 +1,8 @@
+| Tertis wants exactly 160K of screen and 512K of application memory, which its
+| own launcher would set up. Every other mode change leaves the screen in place.
+Set Tertis$Dir <Obey$Dir>.
+IconSprites <Tertis$Dir>!Sprites
+WimpSlot -min 32K -max 32K
+BASIC -quit <Tertis$Dir>Screen
+WimpSlot -min 512K -max 512K
+/<Tertis$Dir>!RunImage

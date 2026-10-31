@@ -76,9 +76,12 @@ typedef struct { u32 start, end, unit; } ov_range_t;
 extern const ov_range_t ov_ranges[];
 extern const u32 ov_range_count, ov_units;
 
+#define PAD_BUTTONS 8 /* left, right, up, down, A, B, X, Start */
+
 /* Bundled apps. Each is an overlay unit, but its code runs at its load address in
  * RAM, which other tasks share, so entry is by address and instruction word. */
-typedef struct { u32 start, end, entry, entry_word, unit, frame_us; } ov_app_t;
+#define PAD_NONE 0xFF
+typedef struct { u32 start, end, entry, entry_word, unit, frame_us; u8 pad[PAD_BUTTONS]; } ov_app_t;
 extern const ov_app_t ov_apps[];
 extern const u32 ov_app_count, rom_ext_pages;
 
@@ -137,6 +140,7 @@ void mach_init(const u8 *cmos_image);
 void mach_run(u32 start_pc);
 void mach_stop(void);
 void mach_key(int row, int col, int down);
+const u8 *mach_pad_map(void);
 void mach_mouse(int dx, int dy, int buttons);
 
 /* Screen description handed to the platform on each frame */

@@ -13,6 +13,7 @@ from pathlib import Path
 
 import basic
 from romscan import find_chain, load_rom, module_info, word
+from scorpress import unpack
 
 PACK_BASE = 0x3C00000
 PAGE = 0x8000
@@ -52,6 +53,8 @@ def load_apps(cache):
                 continue
             source = paths[entry["upstream"]] if "upstream" in entry else manifest.parent / entry["local"]
             entry["data"] = source.read_bytes()
+            if entry.get("unpack") == "scorpress":
+                entry["data"] = unpack(entry["data"])
         apps.append(app)
     return apps
 

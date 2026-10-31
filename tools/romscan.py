@@ -117,6 +117,20 @@ SKIP_MODULES = {
 ENTRIES = set()  # every address reached indirectly or by branch: needs a block entry
 
 
+def long_adr(rom, pc, rd, target):
+    """Follow ADD/SUB rd,rd,#imm after an ADR, which reaches further than one can."""
+    while 0 <= pc < len(rom) - 3:
+        insn = word(rom, pc)
+        if insn & 0xFFEFF000 != 0xE2800000 | rd << 16 | rd << 12 and insn & 0xFFEFF000 != 0xE2400000 | rd << 16 | rd << 12:
+            break
+        rot = ((insn >> 8) & 15) * 2
+        value = insn & 0xFF
+        value = ((value >> rot) | (value << (32 - rot))) & 0xFFFFFFFF if rot else value
+        target += value if insn & (1 << 23) else -value
+        pc += 4
+    return target
+
+
 def walk(rom, seeds, base=ROM_BASE):
     """Return image offsets reached by static control flow, jump tables and ADR.
 
@@ -137,7 +151,7 @@ def walk(rom, seeds, base=ROM_BASE):
             if klass == 5:  # B / BL
                 target = pc + 8 + (((insn & 0xFFFFFF) ^ 0x800000) - 0x800000) * 4
                 target &= 0x3FFFFFF  # 26-bit PC; reset branches wrap into high ROM
-                stack.append(target - base if target >= base else target)
+                stack.append(target - base if base == ROM_BASE and target >= base else target)
                 if insn & (1 << 24) == 0 and cond == 0xE:
                     break
             elif insn & 0x0FEF0000 in (0x028F0000, 0x024F0000):  # ADR
@@ -145,6 +159,8 @@ def walk(rom, seeds, base=ROM_BASE):
                 value = insn & 0xFF
                 value = ((value >> rot) | (value << (32 - rot))) & 0xFFFFFFFF if rot else value
                 target = pc + 8 + (value if insn & (1 << 23) else -value)
+                if base != ROM_BASE:
+                    target = long_adr(rom, pc + 4, (insn >> 12) & 15, target)
                 if plausible(rom, target):
                     stack.append(target)
             elif is_jump_table(insn):
