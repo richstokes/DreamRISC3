@@ -12,11 +12,12 @@ KOS_INIT_FLAGS(INIT_DEFAULT);
 
 extern const u8 cmos_image[];
 
-#define MAX_LINE_BYTES 160
-#define MAX_LINES 256
+#define MAX_LINE_BYTES 640
+#define SHADOW_BYTES (640 * 480)
 #define CURSOR_LINE_BYTES 8
 
-static u8 shadow[MAX_LINES][MAX_LINE_BYTES];
+static u8 shadow[SHADOW_BYTES];
+static u8 wrapped[MAX_LINE_BYTES];
 static uint16_t row[640] __attribute__((aligned(32)));
 static uint16_t lut[256];
 static u32 last_pal[20];
@@ -164,11 +165,16 @@ static void overlay_cursor(const screen_t *s, int y, int width)
 	}
 }
 
-static inline void put_row(int y, int height, int width)
+/* Low resolution modes have fewer pixels on the same scanline, so widen them. */
+static inline void put_row(int y, int height, int width, int scale)
 {
-	int first = y * 480 / height, last = (y + 1) * 480 / height, d;
+	int first = y * 480 / height, last = (y + 1) * 480 / height, d, x, i;
+	if (scale > 1)
+		for (x = width - 1; x >= 0; x--)
+			for (i = scale - 1; i >= 0; i--)
+				row[x * scale + i] = row[x];
 	for (d = first; d < last; d++)
-		sq_cpy(vram_s + d * 640, row, (size_t)width * 2);
+		sq_cpy(vram_s + d * 640, row, (size_t)(width * scale) * 2);
 }
 
 /* Redraw only lines that changed, plus the lines under the pointer. */
@@ -206,14 +212,15 @@ void plat_frame(const screen_t *s)
 		next_log = now + 5000000;
 	}
 #endif
-	u32 addr = s->start, line_bytes = (u32)(s->width * s->bpp / 8);
+	u32 addr = s->start, line_bytes = (u32)(s->width * s->bpp / 8), seen = 0, n;
 	int width = s->width > 640 ? 640 : s->width;
-	int height = s->height > MAX_LINES * 2 ? MAX_LINES * 2 : s->height;
-	int y, full;
+	int height = s->height, scale, y, full;
 	if (++frame_count & 1)
 		return;
 	if (width <= 0 || height <= 0 || line_bytes == 0)
 		return;
+	scale = 640 / width;
+	n = (u32)(width * s->bpp / 8);
 	full = width != last_w || height != last_h || s->bpp != last_bpp ||
 	       memcmp(last_pal, s->palette, sizeof(last_pal));
 	if (full) {
@@ -224,17 +231,27 @@ void plat_frame(const screen_t *s)
 		build_lut(s);
 		vid_clear(0, 0, 0);
 	}
-	for (y = 0; y < height && y < MAX_LINES; y++) {
+	for (y = 0; y < height; y++) {
 		const u8 *src = s->ram + addr;
 		int cursor_now = y >= s->cursor_y && y < s->cursor_y + s->cursor_h;
 		int cursor_old = y >= old_cursor_y && y < old_cursor_y + old_cursor_h;
-		u32 n = line_bytes > MAX_LINE_BYTES ? MAX_LINE_BYTES : line_bytes;
-		if (full || cursor_now || cursor_old || memcmp(shadow[y], src, n)) {
-			memcpy(shadow[y], src, n);
+		/* A hardware scrolled screen can wrap part way through a line */
+		if (addr < s->end && addr + n > s->end) {
+			u32 part = s->end - addr;
+			memcpy(wrapped, src, part);
+			memcpy(wrapped + part, s->ram + s->base, n - part);
+			src = wrapped;
+		}
+		/* Lines past the shadow have no copy to compare with, so always redraw */
+		int tracked = seen + n <= SHADOW_BYTES;
+		if (full || cursor_now || cursor_old || !tracked || memcmp(shadow + seen, src, n)) {
+			if (tracked)
+				memcpy(shadow + seen, src, n);
 			expand_line(s, src, width);
 			overlay_cursor(s, y, width);
-			put_row(y, height, width);
+			put_row(y, height, width, scale);
 		}
+		seen += n;
 		addr += line_bytes;
 		if (addr >= s->end)
 			addr = s->base + (addr - s->end);

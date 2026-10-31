@@ -14,7 +14,7 @@ RISC OS 3.11 running natively on the Sega Dreamcast, built on KallistiOS.
 - Physical keyboard, mouse and controller are untested on hardware, and nobody has looked at the real video output yet
 - No sound output, no storage beyond ROM and RamFS, and screen modes are stretched to 640x480
 - `!Draw` and `!Paint` load on demand from disc as code overlays, and rarely used ROM pages stream too. Verified on real hardware over dcload and from a disc image in Flycast; reading a real disc on the console is untested
-- Memory: ~14.8MB of 16MB used (8.9MB ELF, ~1.9MB ROM cache, 4MB guest RAM)
+- Memory: ~15.1MB of 16MB used (9.2MB ELF, ~1.9MB ROM cache, 4MB guest RAM)
 
 ## Build
 

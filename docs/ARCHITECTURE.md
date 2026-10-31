@@ -53,6 +53,8 @@ tools/converge.sh tests/apps.replay 136
 
 Replays hold `move`, `button`, `key` and `shot` lines. Slam to a corner first for a fixed origin. Pointer scale is ~1.5px per unit across and ~0.75 down in mode 12.
 
+The harness and the screen checksums read guest RAM, so neither one sees bugs in the Dreamcast display path in `src/dc/main.c`. Check that in Flycast by eye.
+
 ## Hardware Results (10/31)
 
 The Good: 8 of 9 boots reached the desktop, checksum `C50F35BC`, same as the harness. The replay run matched all three checkpoints, so the Filer, BASIC and a C app behave identically on the SH-4. Boot is ~26-31s, at ~49 of 50 frames/s.
