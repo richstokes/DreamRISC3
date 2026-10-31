@@ -1,0 +1,14 @@
+; A binary tree. Each branch is a smaller tree
+TO TREE :SIZE
+  IF :SIZE < 8 [STOP]
+  FD :SIZE
+  LT 25 TREE :SIZE * 0.72
+  RT 50 TREE :SIZE * 0.72
+  LT 25
+  BK :SIZE
+END
+CS
+SETPC 10
+PU SETXY 0 -130 PD
+TREE 62
+HT

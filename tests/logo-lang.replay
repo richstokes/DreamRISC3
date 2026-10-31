@@ -1,0 +1,144 @@
+# Launch Logo and run a language self-test: CK prints a dot for a pass.
+70.0 key 0 12 1
+70.1 key 0 12 0
+73.0 type filer_run resources:$.apps.!logo\n
+78.0 key 4 7 1
+78.1 key 4 7 0
+84 type MAKE "N 0\n
+100.0 type TO CK :A :B\n
+103.5 type IFELSE EQUALP :A :B [TYPE ".] [PRINT "FAIL MAKE "N :N + 1]\n
+114.7 type END\n
+116.7 type CK 1 + 2 * 3 7\n
+120.8 type CK (1 + 2) * 3 9\n
+125.1 type CK 10 / 4 2.5\n
+129.0 type CK -3 + 1 -2\n
+132.6 type CK 2 - 5 -3\n
+136.1 type CK REMAINDER 7 3 1\n
+140.9 type CK SUM 1 2 3\n
+144.5 type CK (SUM 1 2 3) 6\n
+148.9 type CK (PRODUCT 2 3 4) 24\n
+154.2 type CK DIFFERENCE 5 2 3\n
+159.1 type CK QUOTIENT 9 3 3\n
+163.7 type CK ABS -4 4\n
+167.1 type CK INT 3.7 3\n
+170.8 type CK INT MINUS 3.7 -3\n
+174.8 type CK ROUND 3.5 4\n
+178.8 type CK MINUS 3 -3\n
+182.7 type CK SQRT 16 4\n
+186.3 type CK POWER 2 10 1024\n
+191.1 type CK ROUND SIN 90 1\n
+195.6 type CK ROUND COS 0 1\n
+200.0 type CK ROUND TAN 45 1\n
+204.6 type CK ROUND ARCTAN 1 45\n
+209.7 type CK 1 < 2 "TRUE\n
+213.7 type CK 2 <= 1 "FALSE\n
+218.1 type CK 3 >= 3 "TRUE\n
+222.3 type CK 3 > 4 "FALSE\n
+226.5 type CK 3 <> 4 "TRUE\n
+230.7 type CK AND "TRUE "FALSE "FALSE\n
+236.9 type CK OR "TRUE "FALSE "TRUE\n
+242.7 type CK NOT "FALSE "TRUE\n
+247.6 type CK FIRST [A B] "A\n
+252.2 type CK LAST [A B] "B\n
+256.5 type CK BF [A B C] [B C]\n
+261.5 type CK BL [A B C] [A B]\n
+266.4 type CK FIRST "HELLO "H\n
+271.1 type CK BF "HELLO "ELLO\n
+275.9 type CK BL "HELLO "HELL\n
+280.6 type CK LAST "HELLO "O\n
+285.2 type CK ITEM 2 [A B C] "B\n
+290.3 type CK ITEM 2 "CAT "A\n
+294.8 type CK COUNT [A B C] 3\n
+299.6 type CK COUNT "CAT 3\n
+303.8 type CK SE "A [B C] [A B C]\n
+309.2 type CK (SE "A "B "C) [A B C]\n
+315.0 type CK LIST "A [B] [A [B]]\n
+320.5 type CK FPUT "A [B] [A B]\n
+325.6 type CK LPUT "A [B] [B A]\n
+330.7 type CK WORD "A "B "AB\n
+335.3 type CK (WORD "A 1 "B) "A1B\n
+340.7 type CK EMPTYP [] "TRUE\n
+345.5 type CK EMPTYP [A] "FALSE\n
+350.6 type CK WORDP "A "TRUE\n
+355.1 type CK LISTP [] "TRUE\n
+359.7 type CK NUMBERP 3 "TRUE\n
+364.4 type CK NUMBERP "A "FALSE\n
+369.5 type CK MEMBERP "B [A B] "TRUE\n
+375.5 type CK MEMBERP "Z [A B] "FALSE\n
+381.7 type CK MEMBERP "A "CAT "TRUE\n
+387.5 type CK "hello "HELLO\n
+391.9 type MAKE "X 5\n
+395.0 type CK :X 5\n
+397.8 type CK THING "X 5\n
+401.6 type TO F :N\n
+404.4 type LOCAL "X\n
+407.3 type MAKE "X :N * 2\n
+411.3 type OP :X\n
+413.7 type END\n
+415.8 type CK F 4 8\n
+418.7 type CK :X 5\n
+421.5 type TO FACT :N\n
+424.8 type IF :N < 2 [OP 1]\n
+429.2 type OP :N * FACT :N - 1\n
+434.1 type END\n
+436.1 type CK FACT 5 120\n
+440.0 type CK FACT 10 3628800\n
+446.9 type CK IFELSE 1 = 1 [2] [3] 2\n
+452.9 type CK RUN [1 + 1] 2\n
+456.7 type PRINT :N\n
+462.7 shot build/tk.ppm
+463.2 type CT\n
+465.1 shot build/ta.ppm
+465.6 type REPEAT 3 [TYPE REPCOUNT]\n
+471.4 type PRINT "|\n
+474.4 type PRINT [A [B C] D]\n
+478.9 type SHOW [A [B C]]\n
+482.9 type PRINT 1.5 + 0.25\n
+487.3 type (PRINT "A "B 3)\n
+491.5 type PRINT ARCTAN 1\n
+495.5 shot build/tb.ppm
+496.0 type TO LOOPY\n
+499.0 type REPEAT 3000 [MAKE "L (LIST 1.5 + REPCOUNT "A [B C] REPCOUNT)]\n
+511.5 type END\n
+513.5 type LOOPY\n
+545.9 type PRINT :L\n
+565.9 shot build/tl.ppm
+578.8 type TO DOWN :N\n
+582.1 type IF :N = 0 [STOP]\n
+586.5 type DOWN :N - 1\n
+620.0 type END\n
+622.0 type DOWN 400\n
+655.0 type PRINT "DEEP\n
+658.5 shot build/tc.ppm
+659.0 type CS FD 50 RT 90 FD 50\n
+664.1 type CK HEADING 90\n
+667.9 type CK XCOR 50\n
+671.2 type CK YCOR 50\n
+674.5 type CK ROUND TOWARDS 0 0 225\n
+680.3 type CK PENCOLOR 0\n
+684.2 type SETPC 4 SETH 45 HT ST PU HOME PD\n
+691.4 type CK HEADING 0\n
+695.1 type SETXY 50 50 SETX 20 SETY 30\n
+701.4 type LABEL "Hello\n
+705.1 type FD 10 BK 10 LT 90 RT 90 CLEAN\n
+711.8 type REPEAT 4 [FD 40 RT 90]\n
+717.3 type PU SETXY 10 10 PD SETPC 2 FILL\n
+724.2 type WAIT 6\n
+726.8 type PO "F\n
+729.2 type SAVE "ADFS::0.$.Mine\n
+731.4 type POTS\n
+734.3 type ERALL\n
+736.7 shot build/td.ppm
+737.2 type LOAD "ADFS::0.$.Mine\n
+740.9 type CK FACT 5 120\n
+742.7 type PRINT 1 / 0\n
+746.2 shot build/te.ppm
+746.7 type PRINT FIRST []\n
+750.7 type PRINT :NOPE\n
+754.2 type 5\n
+755.9 type SUM 1\n
+758.3 shot build/tf.ppm
+758.8 type PRINT [\n
+761.6 type A B ]\n
+764.0 type PRINT FOOBAR\n
+769.1 shot build/tz.ppm

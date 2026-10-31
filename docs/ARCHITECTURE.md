@@ -55,6 +55,12 @@ Apps can be far bigger than Lander. Tertis has ~20k instructions, or ~840KB of u
 
 Lander's physics run per frame, with only the vsync wait to limit them, so that speed made it far too fast. `code.frame_us` sets the app's vertical sync period, without touching OS timers. Lander uses 25Hz. An 8MHz ARM2 would manage ~15 frames/s going by ~150-290K ARM instructions a frame at ~4 MIPS, which is an estimate and not a measurement on real Acorn hardware, so it's probably still a bit quicker than the original. Open question: does it feel right on a pad?
 
+BASIC apps skip all of that. `!Logo` is tokenised BASIC in the pack, run by the ROM's BASIC, so it has no unit and no `code` block. The cost is speed: it's an interpreter in an interpreter. The Tree demo took ~15-20s in Flycast, which is not a hardware timing. New BASIC statements can still reach ROM code that was never recompiled, so `tools/converge.sh` applies to BASIC apps as well.
+
+The Logo canvas is a mode 27 sprite plotted into a window with no background. With a white background the Wimp clears the canvas before each plot, which flickered badly while a program ran. A running program polls the Wimp every 4cs from inside the interpreter, so the desktop and the Stop button stay live.
+
+Flycast check (10/31): launched Logo and picked Tree from the menu from a disc image, matching the harness at all four checkpoints, and a full framebuffer dump looks right. One earlier dump showed the turtle still on screen after `HT` with matching checksums. Two more runs were clean and both buffers matched guest memory, so no idea why, but keep an eye on it. Not run on a real console yet, and typing has only run on the harness, which sometimes drops a key around the 15th character of a `type` line since the rebase. Cause unknown.
+
 ## Storage
 
 `src/fdc.c` is a native driver behind the WD1772 registers, so RISC OS's own ADFS and FileCore run unchanged, including their FIQ byte transfers. The disc (`assets/adfs.adf.gz`) is an 800KB ADFS E image that RISC OS formatted itself on the harness via `tests/format.replay`. It loads into RAM at boot, so writes work but vanish at power off.

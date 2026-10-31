@@ -1,0 +1,16 @@
+{
+  "name": "!Logo",
+  "files": [
+    {"name": "!Boot", "type": "feb", "local": "!Boot"},
+    {"name": "!Run", "type": "feb", "local": "!Run"},
+    {"name": "!Help", "type": "fff", "local": "!Help"},
+    {"name": "!Sprites", "type": "ff9", "art": "icon.txt"},
+    {"name": "!RunImage", "type": "ffb", "basic": "Logo.bas"},
+    {"name": "Demos.Spiral", "type": "fff", "local": "Demos/Spiral"},
+    {"name": "Demos.Star", "type": "fff", "local": "Demos/Star"},
+    {"name": "Demos.Flower", "type": "fff", "local": "Demos/Flower"},
+    {"name": "Demos.Tree", "type": "fff", "local": "Demos/Tree"},
+    {"name": "Demos.Snowflake", "type": "fff", "local": "Demos/Snowflake"},
+    {"name": "Demos.Squares", "type": "fff", "local": "Demos/Squares"}
+  ]
+}

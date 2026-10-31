@@ -1,0 +1,5 @@
+| Logo is a BBC BASIC task, so there is no ARM to recompile: the ROM's BASIC runs it.
+Set Logo$Dir <Obey$Dir>
+IconSprites <Logo$Dir>.!Sprites
+WimpSlot -min 512K -max 512K
+Run <Logo$Dir>.!RunImage

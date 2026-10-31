@@ -31,6 +31,7 @@ TOKENS = {
     "PROC": b"\xf2", "READ": b"\xf3", "REM": b"\xf4", "REPEAT": b"\xf5", "REPORT": b"\xf6",
     "RESTORE": b"\xf7", "RETURN": b"\xf8", "RUN": b"\xf9", "STOP": b"\xfa", "COLOUR": b"\xfb",
     "TRACE": b"\xfc", "UNTIL": b"\xfd", "WIDTH": b"\xfe", "OSCLI": b"\xff",
+    "TIME": b"\x91",  # the read form; assigning to it needs a different token
     "SUM": b"\xc6\x8e", "BEAT": b"\xc6\x8f",
     "CASE": b"\xc8\x8e", "CIRCLE": b"\xc8\x8f", "FILL": b"\xc8\x90", "ORIGIN": b"\xc8\x91",
     "POINT": b"\xc8\x92", "RECTANGLE": b"\xc8\x93", "SWAP": b"\xc8\x94", "WHILE": b"\xc8\x95",

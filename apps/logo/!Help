@@ -1,0 +1,18 @@
+Logo, a turtle graphics language, written in BBC BASIC for DreamRISC.
+
+Type commands in the box under the canvas and press Return, or pick one
+from Demos on the menu. Run, Stop and Clear do what they say. Up and down
+step through what you typed.
+
+  REPEAT 4 [FD 100 RT 90]
+
+  TO SQUARE :SIZE
+    REPEAT 4 [FD :SIZE RT 90]
+  END
+
+Coordinates are 200 steps left and right of centre, 140 up and down.
+Colours for SETPC are the usual Logo 0 to 15, mapped to the nearest desktop
+colour; there is no magenta.
+
+Procedures can be written in Edit and dropped on the window to load them.
+LOAD "file and SAVE "file work on a floppy, e.g. SAVE "ADFS::0.$.Mine

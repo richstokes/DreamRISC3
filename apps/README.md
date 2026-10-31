@@ -10,8 +10,9 @@ Neither part is loaded at boot. Pack pages stream through the ROM page cache whe
 
 - `name`: application folder, listed under `Apps`
 - `upstream`: files to download, pinned by commit and sha256
-- `files`: folder contents, from `local` files here, `upstream` keys or `basic` text to tokenise, with a filetype or a load and exec address
+- `files`: folder contents, from `local` files here, `upstream` keys, `basic` text to tokenise or `art` for a sprite file from text art, with a filetype or a load and exec address
 - `files[].unpack`: set to `scorpress` to store the file unpacked, for code the app would decompress itself. Names can hold a subfolder, as in `Data.AllMods`
+- `code`: leave this out for a BASIC app, which needs no unit of its own
 - `code.file`: the file holding ARM code, which must have `load` and `exec`
 - `code.seeds`: extra entry points, as `tools/converge.sh` finds them
 - `code.tables`: tables of code pointers, as `[address, count]`
@@ -26,3 +27,11 @@ Code the static walk misses shows up as "no native code" on the harness. Inside 
 We skip its launcher, `!RunImage` in the upstream app. That's a splash screen and a ScorPress decompressor, so we unpack `TertisCode` at build time (`tools/scorpress.py`) and ship that as `!RunImage`. `!Run` does the launcher's other job, setting the screen to 160K. Doing it from BASIC is the only way that's simple, as `*ChangeDynamicArea` has no screen option on 3.11.
 
 Of note is that `adfs/Code/TetrisCode` upstream is a different build from the one that shipped, so don't use it. The launcher's exec address, `0x749F4`, sits 8 bytes ahead of the code at `0x749FC`, on two words that do nothing. We enter at the code.
+
+## Logo
+
+`!Logo` is our own, written in BBC BASIC (`logo/Logo.bas`). No open source Logo exists for RISC OS, and UCBLogo would have needed an ARM toolchain plus a recompile of a large C program. BASIC is already in the ROM as native code, so this costs ~23KB of pack and nothing at boot.
+
+Demos are plain Logo text in `logo/Demos`. Add one by listing it in `app.json` and in the `DATA` line under `PROCmenus`. A different count also means changing `DN$`, the loop there and the menu size.
+
+Watch out for `FOR`, which always runs once in BBC BASIC, and for anything live across an allocation, which has to be on `VS%` or the collector frees it. `tools/basic.py` matches keywords as prefixes like BASIC does, so a variable can't start with one (hence `zRUN%`), and it knows `TIME` only as a value.

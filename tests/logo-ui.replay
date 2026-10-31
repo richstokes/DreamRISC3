@@ -1,0 +1,34 @@
+# Launch Logo, run a demo from the menu, then Stop a FOREVER with the button.
+70 key 0 12 1
+70.1 key 0 12 0
+73 type filer_run resources:$.apps.!logo\n
+78 key 4 7 1
+78.1 key 4 7 0
+100 move -1000 1000
+102 move 150 -150
+104 button 2
+104.2 button 0
+108 shot build/u1.ppm
+110 move 48 7
+114 shot build/u2.ppm
+115 move 34 0
+116 move 0 44
+118.5 shot build/u7.ppm
+120 button 1
+120.2 button 0
+150 shot build/u3.ppm
+152 type TO WALK\n
+156 type RT 83 FD 30\n
+160 type END\n
+164 type FOREVER [WALK]\n
+173 shot build/u8.ppm
+174 shot build/u9.ppm
+174 move -1000 1000
+178 move 288 -55
+180 button 1
+180.2 button 0
+186 shot build/u5.ppm
+188 move 30 0
+190 button 1
+190.2 button 0
+194 shot build/u6.ppm

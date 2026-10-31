@@ -1,0 +1,10 @@
+; A square spiral, drawn by recursion
+TO SPIRAL :SIZE :ANGLE
+  IF :SIZE > 130 [STOP]
+  FD :SIZE
+  RT :ANGLE
+  SPIRAL :SIZE + 3 :ANGLE
+END
+CS
+SETPC 1
+SPIRAL 3 91

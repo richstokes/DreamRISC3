@@ -41,6 +41,24 @@ def fetch(app, cache):
     return paths
 
 
+def sprite_file(art):
+    """A sprite file from text art: the name, then a hex Wimp colour or . per pixel."""
+    name, *rows = art.split()
+    width, height = len(rows[0]), len(rows)
+    image, mask = bytearray(), bytearray()
+    for row in rows:
+        pixels = [int(c, 16) if c != "." else 0 for c in row]
+        solid = [15 if c != "." else 0 for c in row]
+        for source, dest in ((pixels, image), (solid, mask)):
+            line = bytes(source[n] | (source[n + 1] << 4 if n + 1 < width else 0) for n in range(0, width, 2))
+            dest += line + bytes(-len(line) & 3)
+    words = len(image) // height // 4
+    head = struct.pack("<I12s", 44 + len(image) * 2, name.encode())
+    head += struct.pack("<8I", words - 1, height - 1, 0, (width * 4 - 1) & 31, 44, 44 + len(image), 12, 0)[:28]
+    area = struct.pack("<III", 1, 16, 16 + len(head) + len(image) * 2)
+    return area + head + image + mask
+
+
 def load_apps(cache):
     apps = []
     for manifest in sorted((ROOT / "apps").glob("*/app.json")):
@@ -50,6 +68,9 @@ def load_apps(cache):
             if "basic" in entry:
                 source = manifest.parent / entry["basic"]
                 entry["data"] = basic.tokenise(source.read_text(encoding="latin-1"))
+                continue
+            if "art" in entry:
+                entry["data"] = sprite_file((manifest.parent / entry["art"]).read_text())
                 continue
             source = paths[entry["upstream"]] if "upstream" in entry else manifest.parent / entry["local"]
             entry["data"] = source.read_bytes()
