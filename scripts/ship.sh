@@ -22,6 +22,8 @@ check() {
 while read -r replay secs sum disc; do
   [ -z "$replay" ] || check "$replay" "$secs" "$sum" "${disc:-}"
 done < tests/expected.txt
+DREAM_WAV=build/sound.wav DREAM_REPLAY=tests/sound.replay ./build/dreamrisc-host build/rom.bin assets/cmos.bin 97 /dev/null 2>/dev/null
+python3 tools/soundcheck.py build/sound.wav
 git push origin HEAD:main
 git fetch -q origin
 git status -sb | head -1

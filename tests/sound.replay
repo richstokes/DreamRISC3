@@ -1,0 +1,7 @@
+# BASIC middle C at full volume on channel 1, a beep, then silence.
+70 key 0 12 1
+70.1 key 0 12 0
+73 type basic\n
+78 type SOUND 1,-15,53,40\n
+90 type VDU 7\n
+95 shot build/s1.ppm

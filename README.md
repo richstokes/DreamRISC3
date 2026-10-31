@@ -13,7 +13,8 @@ RISC OS 3.11 running natively on the Sega Dreamcast, built on KallistiOS.
 - Known issue: 1 of 9 console boots stuck before the desktop. Not reproduced since, cause unknown
 - Physical keyboard, mouse and controller are untested on hardware, and nobody has looked at the real video output yet
 - Floppy drive `:0` holds an ADFS E disc called DreamRISC. Saves work but are lost at power off for now
-- No sound output, and screen modes are stretched to 640x480
+- The desktop runs in mode 27, a true 640x480 in 16 colours. Lower resolution modes, like Lander's, are still stretched to fit
+- Sound plays through the AICA: beeps, BASIC's `SOUND` and anything else using the RISC OS sound system. Checked by recording it on the harness and by ring counters in Flycast; nobody has listened to it on a console yet
 - `!Draw` and `!Paint` load on demand from disc as code overlays, and rarely used ROM pages stream too. Verified on real hardware over dcload and from a disc image in Flycast; reading a real disc on the console is untested
 - **Lander** is in the Apps folder, recompiled from its ARM binary and streamed from disc when launched. Locked 25 frames/s on the console, played by script only so far
 - Memory: ~15.2MB of 16MB used (8.4MB ELF, ~1.9MB ROM cache, 0.8MB disc, 4MB guest RAM)

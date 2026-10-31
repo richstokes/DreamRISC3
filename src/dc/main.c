@@ -2,6 +2,7 @@
  * natively recompiled RISC OS 3.11. */
 #include <kos.h>
 #include <dc/sq.h>
+#include <dc/sound/stream.h>
 #include <arch/cache.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -28,6 +29,7 @@ static u32 lut_pair[256];
 static u32 last_pal[20];
 static int last_w, last_h, last_bpp, frame_count;
 static u32 last_start;
+static volatile u32 ring_in, ring_out, sound_rate, sound_held;
 #ifdef HW_REPLAY
 static screen_t replay_screen;
 #endif
@@ -259,11 +261,12 @@ void plat_frame(const screen_t *s)
 	log_flips += s->start != last_start;
 	if (now >= next_log) {
 		u32 polls = mach_polls();
-		printf("hb t=%llu frames=%lu polls=%lu flips=%lu present=%lums mode=%dx%dx%d sum=%08lX\n",
+		printf("hb t=%llu frames=%lu polls=%lu flips=%lu present=%lums mode=%dx%dx%d sum=%08lX sound=%lu/%lu held=%lu\n",
 			(unsigned long long)(now / 1000000), (unsigned long)log_frames,
 			(unsigned long)(polls - log_polls), (unsigned long)log_flips,
 			(unsigned long)(present_us / 1000), s->width, s->height, s->bpp,
-			(unsigned long)mach_screen_sum(s));
+			(unsigned long)mach_screen_sum(s), (unsigned long)ring_in,
+			(unsigned long)ring_out, (unsigned long)sound_held);
 		{
 			extern u32 mach_prof[66];
 			u32 app = 0;
@@ -345,6 +348,78 @@ void plat_frame(const screen_t *s)
 #ifdef HW_LOG
 	present_us += timer_us_gettime64() - now;
 #endif
+}
+
+/* The machine layer fills a ring and a thread feeds it to the AICA, so sound keeps
+ * flowing while the machine blocks on disc. The thread runs inside KOS, where r14
+ * is not the machine state, so it must stay away from anything using C. */
+#define SOUND_BYTES 4096 /* per channel, on the AICA; refilled by half */
+#define RING_FRAMES 2048
+#define SOUND_SLACK 256 /* frames in hand before starting, to absorb buffer timing */
+static u32 ring[RING_FRAMES];
+static u32 sound_out[SOUND_BYTES / 4] __attribute__((aligned(32)));
+static snd_stream_hnd_t sound_stream = SND_STREAM_INVALID;
+
+void plat_sound(const s16 *stereo, int frames, int rate)
+{
+	const u32 *in = (const u32 *)stereo;
+	int i;
+	sound_rate = (u32)rate;
+	for (i = 0; i < frames && ring_in - ring_out < RING_FRAMES; i++) {
+		ring[ring_in & (RING_FRAMES - 1)] = in[i];
+		ring_in++;
+	}
+}
+
+/* Running dry holds the last frame, which is silent, instead of clicking */
+static void *sound_fill(snd_stream_hnd_t stream, int bytes, int *got)
+{
+	static u32 last;
+	static int primed;
+	u32 n = (u32)bytes / 4, i, have = ring_in - ring_out;
+	(void)stream;
+	if (have >= n + SOUND_SLACK)
+		primed = 1;
+	for (i = 0; i < n; i++) {
+		if (primed && ring_out != ring_in) {
+			last = ring[ring_out & (RING_FRAMES - 1)];
+			ring_out++;
+		} else {
+			primed = 0;
+			sound_held++;
+		}
+		sound_out[i] = last;
+	}
+	*got = bytes;
+	return sound_out;
+}
+
+static void *sound_thread(void *arg)
+{
+	u32 rate = 0;
+	(void)arg;
+	for (;;) {
+		if (sound_rate != rate) {
+			if (rate)
+				snd_stream_stop(sound_stream);
+			rate = sound_rate;
+			snd_stream_start(sound_stream, rate, 1);
+		}
+		if (rate)
+			snd_stream_poll(sound_stream);
+		thd_sleep(10);
+	}
+	return NULL;
+}
+
+static void sound_start(void)
+{
+	kthread_attr_t attr = {.stack_size = 16384, .prio = PRIO_DEFAULT - 1, .label = "sound"};
+	if (snd_stream_init_ex(2, SOUND_BYTES) < 0)
+		return;
+	sound_stream = snd_stream_alloc(sound_fill, SOUND_BYTES);
+	if (sound_stream != SND_STREAM_INVALID)
+		thd_create_ex(&attr, sound_thread, NULL);
 }
 
 /* USB HID code to Archimedes keyboard row and column; 0xFF is unmapped. */
@@ -523,6 +598,7 @@ int main(int argc, char **argv)
 	fb_addr[1] = vram_s;
 	back_fb = 1;
 	clear_buffers();
+	sound_start();
 	mach_init(cmos_image);
 	mach_run(0);
 	return 0;

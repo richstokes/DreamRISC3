@@ -4,21 +4,21 @@
 76 button 1
 76.2 button 0
 84 move -1000 1000
-88 move 94 -308
+88 move 94 -292
 90 button 1
 90.1 button 0
 90.3 button 1
 90.4 button 0
 100 shot build/b1.ppm
 100.2 move -1000 1000
-104 move 157 -308
+104 move 157 -292
 106 button 1
 106.1 button 0
 106.3 button 1
 106.4 button 0
 116 shot build/b2.ppm
 116.2 move -1000 1000
-120 move 94 -265
+120 move 94 -249
 122 button 1
 122.1 button 0
 122.3 button 1

@@ -107,6 +107,32 @@ void plat_frame(const screen_t *screen)
 	}
 }
 
+/* DREAM_WAV records what the platform would play, at the last rate in use */
+static FILE *wav;
+static u32 wav_frames, wav_rate;
+
+static void wav_header(void)
+{
+	u32 h[11] = {0x46464952, 36 + wav_frames * 4, 0x45564157, 0x20746D66, 16, 0x00020001,
+		wav_rate, wav_rate * 4, 0x00100004, 0x61746164, wav_frames * 4};
+	fseek(wav, 0, SEEK_SET);
+	fwrite(h, 4, 11, wav);
+}
+
+void plat_sound(const s16 *stereo, int frames, int rate)
+{
+	const char *path = getenv("DREAM_WAV");
+	if (!wav && path)
+		wav = fopen(path, "wb");
+	if (!wav)
+		return;
+	if (!wav_rate)
+		fwrite(&wav_frames, 4, 11, wav); /* room for the header, written at the end */
+	wav_rate = (u32)rate;
+	fwrite(stereo, 4, (size_t)frames, wav);
+	wav_frames += (u32)frames;
+}
+
 /* Scripted input: "<seconds> move <dx> <dy>", "<seconds> button <mask>",
  * "<seconds> key <row> <col> <0|1>", "<seconds> shot <path>",
  * "<seconds> type <text>" (\\n for Return). */
@@ -247,6 +273,16 @@ static void disc_save(void)
 	}
 }
 
+static void cmos_save(void)
+{
+	const char *path = getenv("DREAM_CMOS_OUT");
+	FILE *f = path ? fopen(path, "wb") : NULL;
+	if (f) {
+		fwrite(mach_cmos(), 1, 256, f);
+		fclose(f);
+	}
+}
+
 const ov_header_t *plat_overlay_load(int unit)
 {
 	extern const ov_header_t *const ov_headers[];
@@ -305,6 +341,11 @@ int main(int argc, char **argv)
 			fprintf(stderr, "vector %02X %08X\n", v, mach_peek(v));
 	}
 	disc_save();
+	cmos_save();
+	if (wav) {
+		wav_header();
+		fclose(wav);
+	}
 	fprintf(stderr, "overlay loads %u\n", mach_overlay_loads());
 	fprintf(stderr, "rom misses %u, pages touched %d, pack pages touched %d\n", mach_rom_misses(),
 		__builtin_popcount(pages_touched[0]) + __builtin_popcount(pages_touched[1]),

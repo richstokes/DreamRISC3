@@ -67,6 +67,32 @@ Harness: `DREAM_ADF` loads an image (a missing file means blank), `DREAM_ADF_OUT
 
 Console check (10/31): opened `:0` in the Filer with the checksum matching the harness. Reading from a physical disc or GDEMU is untested, and writing has only run on the harness.
 
+## Display
+
+`assets/cmos.bin` sets MonitorType 3 (VGA), WimpMode 27 and clears the auto mode bit (logical `0xC3` bit 4), so the desktop boots at 640x480 and draws to the Dreamcast framebuffer 1:1. Hand patched and checksummed, as `*Configure` isn't in the recompiled code. The harness can save CMOS with `DREAM_CMOS_OUT`.
+
+A framebuffer dump in Flycast (`HW_DUMP=1`) shows the desktop sharp at full size with the right colours.
+
+The old mode 12 screen was only 256 lines, so this nearly doubles the lines summed per frame. Present stays ~4% of the frame budget in Flycast. It costs ~70KB of guest RAM for the bigger screen.
+
+Things to watch out for:
+
+- Windows sit ~16 pointer units lower than they did in mode 12, while the icon bar stays anchored to the bottom. The replays were moved to match
+- On a TV cable KOS outputs 640x480 interlaced, so 1 pixel lines will flicker, where the line doubled 256 line modes did not. VGA is fine. Untested on a real TV, and if it's bad the answer is probably to pick mode 12 at boot by cable type
+- VSync stays at 50Hz, though real mode 27 is 60Hz. Nothing seems to care
+
+## Sound
+
+The ROM's own SoundDMA, SoundChannels and voice modules run unchanged. A native driver in `src/mach.c` sits behind the MEMC sound registers: at each buffer swap it converts VIDC's log samples to 16-bit stereo using the stereo image registers and hands them to `plat_sound`. Several channels fold into one output frame, so 8 channels at a 6us period still output at 20.8kHz.
+
+On the Dreamcast, a ring feeds a KOS `snd_stream` from its own thread, so sound keeps going while the machine blocks on disc, and a short gap holds the last frame instead of clicking. Latency is ~100-150ms. That thread runs inside KOS, where r14 is not the machine state, so it must never touch `C`.
+
+Mid-buffer changes are not modelled, as buffers go out whole, and the VIDC clock is assumed to be 24MHz. SoundDMA's 48us period gives the right pitch in mode 27 regardless.
+
+Harness: `DREAM_WAV` records output. `tests/sound.replay` plays middle C from BASIC and `tools/soundcheck.py` checks its pitch (258Hz measured, by counting zero crossings). Lander has no Sound SWIs at all, so it's silent, as it should be.
+
+Console check (10/31, Flycast only): checkpoints matched the harness, and over 60s the ring stayed in step at 20.8kHz with no gaps after start up. Nobody has listened to it yet.
+
 ## Considerations
 
 - Size: ~1.2MB of ARM becomes ~8.5MB of SH-4 plus ~1MB of tables, so ~7x. Out-of-line memory helpers and whole-ROM flag liveness are already in, and the latter only saved ~1%
@@ -81,7 +107,7 @@ Flycast's pointer can drift from the host mouse, so use scripted input on the ha
 tools/converge.sh tests/apps.replay 136
 ```
 
-Replays hold `move`, `button`, `key` and `shot` lines. Slam to a corner first for a fixed origin. Pointer scale is ~1.5px per unit across and ~0.75 down in mode 12.
+Replays hold `move`, `button`, `key` and `shot` lines. Slam to a corner first for a fixed origin. Pointer scale is ~1.5px per unit across and down in mode 27, ~0.75 down in mode 12.
 
 The harness and the screen checksums read guest RAM, so neither one sees bugs in the Dreamcast display path in `src/dc/main.c`. Check that in Flycast by eye.
 
@@ -105,4 +131,4 @@ Console and harness checkpoints stop matching in Lander once it moves, because r
 
 1. Look at the real screen, try physical keyboard and mouse, and catch the boot hang if it recurs
 2. Persist saves: write the disc image to SD, or at least a small area to VMU
-3. Sound through AICA, and a true 640x480 desktop mode
+3. Listen to the sound on a console, and check mode 27 on a TV as well as VGA

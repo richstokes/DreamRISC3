@@ -32,6 +32,8 @@ static jmp_buf run_env;
 static int cam_logical[PAGE_COUNT];
 static int page_ppl[PAGE_COUNT];
 static u32 memc_ctrl, vinit, vstart, vend, cinit, sstart, sendn;
+static u32 sound_start, sound_end;
+static int sound_fresh;
 static int page_size;
 
 static struct {
@@ -364,11 +366,15 @@ static void write_memc(u32 a)
 	case 3: cinit = value; break;
 	case 4:
 		sstart = value;
+		sound_fresh = 1;
 		ioc.irqb &= ~IRQB_SOUND;
 		update_irq();
 		break;
 	case 5: sendn = value; break;
 	case 6:
+		sound_start = sstart;
+		sound_end = sendn;
+		sound_fresh = 0;
 		ioc.irqb |= IRQB_SOUND;
 		update_irq();
 		break;
@@ -1150,6 +1156,77 @@ static void present(void)
 	plat_frame(&s);
 }
 
+/* --- sound ---
+ * VIDC plays one byte per period through eight stereo positions in turn. A buffer
+ * is complete by the time the DMA reaches it, so it goes to the platform whole. */
+#define SOUND_CHUNK 128
+static s16 sound_linear[256];
+
+static void sound_init(void)
+{
+	int v;
+	for (v = 0; v < 256; v++) {
+		int chord = v >> 5, point = (v >> 1) & 15;
+		int level = (1 << (chord + 4)) - (1 << 4) + (point << chord);
+		sound_linear[v] = (s16)(v & 1 ? -level : level);
+	}
+}
+
+/* Several channels share the sample rate, so fold them into one output frame.
+ * A channel in eight is 1/8 of the amplitude, as it is on the real DAC. */
+static void sound_output(const u8 *src, u32 bytes, u32 period)
+{
+	static const u8 left[8] = {0, 6, 5, 4, 3, 2, 1, 0};
+	static const u8 right[8] = {0, 0, 1, 2, 3, 4, 5, 6};
+	s16 out[SOUND_CHUNK * 2];
+	u8 image[8];
+	u32 group = 1, shift = 0, frames, f, i, n = 0, pos = 0;
+	while (1000000 / (period * group) > 30000 && group < 8) {
+		group *= 2;
+		shift++;
+	}
+	for (i = 0; i < 8; i++)
+		image[i] = vidc.reg[0x18 + ((i + 1) & 7)] & 7;
+	frames = bytes / group;
+	for (f = 0; f < frames; f++) {
+		s32 l = 0, r = 0;
+		for (i = 0; i < group; i++, pos++) {
+			s32 v = sound_linear[src[pos]];
+			u32 im = image[pos & 7];
+			l += v * left[im];
+			r += v * right[im];
+		}
+		out[n * 2] = (s16)(l >> shift);
+		out[n * 2 + 1] = (s16)(r >> shift);
+		if (++n == SOUND_CHUNK) {
+			plat_sound(out, (int)n, (int)(1000000 / (period * group)));
+			n = 0;
+		}
+	}
+	if (n)
+		plat_sound(out, (int)n, (int)(1000000 / (period * group)));
+}
+
+/* The DMA loops on its buffer unless the OS gave it a new one since the last swap */
+static void sound_swap(uint64_t now)
+{
+	u32 period = (vidc.reg[0x30] & 0xFF) + 2, bytes = 208;
+	if (sound_fresh) {
+		sound_start = sstart;
+		sound_end = sendn;
+		sound_fresh = 0;
+	}
+	if (sound_end > sound_start) {
+		bytes = sound_end - sound_start + 16;
+		sound_output(ram + sound_start, bytes, period);
+	}
+	/* Add to the old deadline, or poll jitter would slow the sample rate down */
+	next_sound_us += (uint64_t)bytes * period;
+	if (next_sound_us < now)
+		next_sound_us = now + (uint64_t)bytes * period;
+	ioc.irqb |= IRQB_SOUND;
+}
+
 static void step_timer(int n, u32 ticks)
 {
 	u32 period = ioc.latch[n] ? ioc.latch[n] + 1 : 0x10001;
@@ -1186,13 +1263,8 @@ static void machine_tick(void)
 	} else if (flyback && now >= flyback_end_us) {
 		flyback = 0;
 	}
-	if ((memc_ctrl & 0x800) && now >= next_sound_us) {
-		/* Buffer swap at the DMA rate: bytes * VIDC sound period */
-		u32 bytes = sendn > sstart ? sendn - sstart + 16 : 208;
-		u32 period = (vidc.reg[0x30] & 0xFF) + 2;
-		next_sound_us = now + (uint64_t)bytes * period;
-		ioc.irqb |= IRQB_SOUND;
-	}
+	if ((memc_ctrl & 0x800) && now >= next_sound_us)
+		sound_swap(now);
 	fdc_tick(now);
 	if (kb.rx_at && now >= kb.rx_at) {
 		kb.rx_at = 0;
@@ -1279,6 +1351,11 @@ u32 mach_screen_sum(const screen_t *s)
 	return sum;
 }
 
+const u8 *mach_cmos(void)
+{
+	return cm.ram;
+}
+
 u32 mach_polls(void)
 {
 	return mach_pc_pos;
@@ -1304,6 +1381,7 @@ void mach_init(const u8 *cmos_image)
 	reset_maps();
 	rom_load_hot();
 	fdc_init();
+	sound_init();
 	for (i = 0; i < 3; i++)
 		rtab[i][0] = rom_cache; /* ROM aliased at 0 until the kernel maps page zero */
 	memset(&cpu_state, 0, sizeof(cpu_state));

@@ -6,6 +6,7 @@
 typedef uint8_t u8;
 typedef uint32_t u32;
 typedef int32_t s32;
+typedef int16_t s16;
 
 #define PSR_I (1u << 27)
 #define PSR_F (1u << 26)
@@ -153,6 +154,7 @@ u32 mach_screen_sum(const screen_t *s);
 u32 mach_polls(void);
 u32 mach_rom_misses(void);
 u32 mach_overlay_loads(void);
+const u8 *mach_cmos(void);
 
 /* Floppy driver (fdc.c) */
 void fdc_init(void);
@@ -173,6 +175,7 @@ const ov_header_t *plat_overlay_load(int unit); /* may block on disc */
 u8 *plat_disc_load(u32 bytes); /* the ADFS image in RAM, or NULL for an empty drive */
 void plat_frame(const screen_t *screen);
 void plat_poll_input(void);
+void plat_sound(const s16 *stereo, int frames, int rate); /* interleaved left, right */
 void plat_log(const char *fmt, ...);
 void plat_fatal(const char *fmt, ...);
 #endif
