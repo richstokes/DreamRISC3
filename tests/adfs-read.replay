@@ -1,0 +1,15 @@
+# Fresh boot from the written image: read it back and open the Filer window.
+70 key 0 12 1
+70.1 key 0 12 0
+73 type cat adfs::0.$\n
+84 type type adfs::0.$.Documents.Hello\n
+96 shot build/r1.ppm
+98 key 4 7 1
+98.1 key 4 7 0
+99 key 4 7 1
+99.1 key 4 7 0
+102 move -1000 1000
+106 move 22 -23
+108 button 1
+108.2 button 0
+122 shot build/r2.ppm

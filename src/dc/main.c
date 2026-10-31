@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <malloc.h>
 #include "../cpu.h"
 
 KOS_INIT_FLAGS(INIT_DEFAULT);
@@ -55,6 +56,10 @@ void plat_fatal(const char *fmt, ...)
 		thd_sleep(1000);
 }
 
+#ifndef PC_ROOT
+#define PC_ROOT ""
+#endif
+
 /* Files live on the disc. Under dcload the host serves them over /pc instead. */
 static file_t open_data(const char *name)
 {
@@ -63,9 +68,6 @@ static file_t open_data(const char *name)
 	snprintf(path, sizeof(path), "/cd/%s", name);
 	f = fs_open(path, O_RDONLY);
 	if (f == FILEHND_INVALID) {
-#ifndef PC_ROOT
-#define PC_ROOT ""
-#endif
 		snprintf(path, sizeof(path), "/pc%s/%s", PC_ROOT, name);
 		f = fs_open(path, O_RDONLY);
 	}
@@ -85,6 +87,27 @@ void plat_rom_read(u32 page, u8 *dest)
 	fs_seek(rom_file, (off_t)page * 0x8000, SEEK_SET);
 	if (fs_read(rom_file, dest, 0x8000) != 0x8000)
 		plat_fatal("short read of ROM page %lu\n", (unsigned long)page);
+}
+
+u8 *plat_disc_load(u32 bytes)
+{
+	char path[192];
+	u8 *image = memalign(32, bytes);
+	file_t f;
+	int pass;
+	for (pass = 0, f = FILEHND_INVALID; pass < 2 && f == FILEHND_INVALID; pass++) {
+		snprintf(path, sizeof(path), pass ? "/pc%s/adfs.adf" : "/cd/adfs.adf", PC_ROOT);
+		f = fs_open(path, O_RDONLY);
+	}
+	if (f == FILEHND_INVALID || !image)
+		return NULL;
+	dcache_purge_range((uintptr_t)image, bytes);
+	if ((u32)fs_read(f, image, bytes) != bytes) {
+		fs_close(f);
+		return NULL;
+	}
+	fs_close(f);
+	return image;
 }
 
 /* Filled from disc; each unit is linked to run at this address. */

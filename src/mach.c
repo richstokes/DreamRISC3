@@ -368,6 +368,17 @@ static int irq_pending(void)
 	return ((ioc.irqa | 0x80) & ioc.mska) || (ioc.irqb & ioc.mskb);
 }
 
+void mach_fiq(u32 bits)
+{
+	ioc.fiq |= (u8)bits;
+	update_irq();
+}
+
+void mach_fiq_clear(u32 bits)
+{
+	ioc.fiq &= (u8)~bits;
+}
+
 static int fiq_pending(void)
 {
 	return ((ioc.fiq | 0x80) & ioc.mskf) != 0;
@@ -664,7 +675,8 @@ static u32 ioc_read(u32 a)
 	u32 v;
 	switch (a & 0x7C) {
 	case 0x00:
-		return (cm.clock ? 2 : 0) | (cm.line ? 1 : 0) | (flyback ? 0x80 : 0) | 4 | 0x40;
+		return (cm.clock ? 2 : 0) | (cm.line ? 1 : 0) | (flyback ? 0x80 : 0) |
+		       (fdc_ready() ? 4 : 0) | 0x40;
 	case 0x04:
 		ioc.irqb &= ~IRQB_KRX;
 		v = kb_read();
@@ -714,6 +726,8 @@ static u32 io_read(u32 a, int word)
 		if (a & (1 << 21))
 			return ioc_read(a);
 		break;
+	case 1:
+		return fdc_read(a);
 	case 5:
 		if ((a & 0xFFFC) == 0x50)
 			return 0;
@@ -726,8 +740,21 @@ static void io_write(u32 a, u32 v)
 {
 	if (priv != PRIV_SUPER)
 		data_abort(a);
-	if (!((a >> 16) & 7) && (a & (1 << 21)))
-		ioc_write(a, v);
+	switch ((a >> 16) & 7) {
+	case 0:
+		if (a & (1 << 21))
+			ioc_write(a, v);
+		break;
+	case 1:
+		fdc_write(a, v & 0xFF);
+		break;
+	case 5:
+		if ((a & 0xFFFC) == 0x18)
+			fdc_latch_b(v & 0xFF);
+		else if ((a & 0xFFFC) == 0x40)
+			fdc_latch_a(v & 0xFF);
+		break;
+	}
 }
 
 static u32 ld32_slow(u32 addr)
@@ -990,6 +1017,10 @@ static block_fn find_block(u32 pc)
 			fn = overlay_find(key);
 	} else {
 		u32 word = fetch_word(pc);
+		if (!rtab[PRIV_SUPER][PAGE_INDEX(pc)]) {
+			mach_miss_pc = pc;
+			plat_fatal("jump to unmapped pc=%07X r14=%08X mode=%d\n", pc, R(14), C->psr & 3);
+		}
 		/* BASIC's SYS builds SWI instructions; the number is read by the handler */
 		if ((word >> 24) == 0xEF)
 			return swi_insn;
@@ -1090,6 +1121,7 @@ static void machine_tick(void)
 		next_sound_us = now + (uint64_t)bytes * period;
 		ioc.irqb |= IRQB_SOUND;
 	}
+	fdc_tick(now);
 	if (kb.rx_at && now >= kb.rx_at) {
 		kb.rx_at = 0;
 		ioc.irqb |= IRQB_KRX;
@@ -1176,6 +1208,7 @@ void mach_init(const u8 *cmos_image)
 	cm.clock = cm.line = 1;
 	reset_maps();
 	rom_load_hot();
+	fdc_init();
 	for (i = 0; i < 3; i++)
 		rtab[i][0] = rom_cache; /* ROM aliased at 0 until the kernel maps page zero */
 	memset(&cpu_state, 0, sizeof(cpu_state));

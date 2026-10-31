@@ -1,0 +1,11 @@
+# On a formatted disc: name it, make folders and write a file with *Spool.
+70 key 0 12 1
+70.1 key 0 12 0
+73 type namedisc :0 DreamRISC\n
+80 type cdir adfs::0.$.Documents\n
+88 type cdir adfs::0.$.Programs\n
+96 type spool adfs::0.$.Documents.Hello\n
+104 type echo Hello from a Dreamcast\n
+112 type spool\n
+118 type cat adfs::0.$\n
+128 shot build/w1.ppm

@@ -12,9 +12,10 @@ RISC OS 3.11 running natively on the Sega Dreamcast, built on KallistiOS.
 - A scripted run on the console opens a Filer window and launches `!Calc`, `!Chars` and `!Edit`, again matching the harness at every checkpoint
 - Known issue: 1 of 9 console boots stuck before the desktop. Not reproduced since, cause unknown
 - Physical keyboard, mouse and controller are untested on hardware, and nobody has looked at the real video output yet
-- No sound output, no storage beyond ROM and RamFS, and screen modes are stretched to 640x480
+- Floppy drive `:0` holds an ADFS E disc called DreamRISC. Saves work but are lost at power off for now
+- No sound output, and screen modes are stretched to 640x480
 - `!Draw` and `!Paint` load on demand from disc as code overlays, and rarely used ROM pages stream too. Verified on real hardware over dcload and from a disc image in Flycast; reading a real disc on the console is untested
-- Memory: ~15.1MB of 16MB used (9.2MB ELF, ~1.9MB ROM cache, 4MB guest RAM)
+- Memory: ~15.5MB of 16MB used (8.7MB ELF, ~1.9MB ROM cache, 0.8MB disc, 4MB guest RAM)
 
 ## Build
 

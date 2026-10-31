@@ -1,0 +1,6 @@
+# Open the disc from the icon bar: mouse only, so it also runs on hardware.
+70 move -1000 1000
+74 move 22 -23
+76 button 1
+76.2 button 0
+92 shot build/o1.ppm

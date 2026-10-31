@@ -14,6 +14,7 @@ region=0x$(sh-elf-nm build/dreamrisc.elf | awk '$3 == "_overlay_region" {print $
 bytes=$(grep -o 'OVERLAY_BYTES 0x[0-9a-f]*u' src/cpu.h | sed 's/.* //; s/u$//')
 rm -rf build/disc; mkdir -p build/disc
 cp build/rom.bin build/disc/rom.bin
+gunzip -c assets/adfs.adf.gz > build/disc/adfs.adf
 for table in build/dc/ov_*_table.o; do
   unit=$(basename "$table" | cut -d_ -f2)
   sh-elf-ld -T tools/overlay.ld --defsym=REGION="$region" --just-symbols=build/dreamrisc.elf \

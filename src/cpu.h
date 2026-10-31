@@ -148,10 +148,23 @@ u32 mach_polls(void);
 u32 mach_rom_misses(void);
 u32 mach_overlay_loads(void);
 
+/* Floppy driver (fdc.c) */
+void fdc_init(void);
+void fdc_tick(uint64_t now);
+void fdc_write(u32 addr, u32 value);
+u32 fdc_read(u32 addr);
+void fdc_latch_a(u32 value);
+void fdc_latch_b(u32 value);
+int fdc_ready(void);
+u8 *fdc_image(void);
+void mach_fiq(u32 bits);
+void mach_fiq_clear(u32 bits);
+
 /* Provided by each platform */
 uint64_t plat_time_us(void);
 void plat_rom_read(u32 page, u8 *dest); /* one 32KB ROM page; may block on disc */
 const ov_header_t *plat_overlay_load(int unit); /* may block on disc */
+u8 *plat_disc_load(u32 bytes); /* the ADFS image in RAM, or NULL for an empty drive */
 void plat_frame(const screen_t *screen);
 void plat_poll_input(void);
 void plat_log(const char *fmt, ...);

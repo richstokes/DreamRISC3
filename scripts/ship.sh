@@ -14,11 +14,14 @@ rm -rf build/host build/dc build/dreamrisc-host
 make -j16 host 2>&1 | { ! grep -E " error|Undefined"; }
 scripts/build-dc.sh --skip-gen > build/ship.log 2>&1 || { tail -5 build/ship.log; exit 1; }
 check() {
-  got=$(DREAM_REPLAY=$1 ./build/dreamrisc-host "${ROM_DIR:-../arculator-mac/roms/riscos311}" assets/cmos.bin "$2" /dev/null 2>&1 | grep -oE 'sum=[0-9A-F]+' | tail -1)
+  gunzip -c assets/adfs.adf.gz > build/test.adf
+  got=$(env ${4:+DREAM_ADF=$4} DREAM_REPLAY=$1 ./build/dreamrisc-host "${ROM_DIR:-../arculator-mac/roms/riscos311}" assets/cmos.bin "$2" /dev/null 2>&1 | grep -oE 'sum=[0-9A-F]+' | tail -1)
   [ "$got" = "sum=$3" ] || { echo "$1: expected $3, got $got" >&2; exit 1; }
   echo "ok $1"
 }
-while read -r replay secs sum; do [ -z "$replay" ] || check "$replay" "$secs" "$sum"; done < tests/expected.txt
+while read -r replay secs sum disc; do
+  [ -z "$replay" ] || check "$replay" "$secs" "$sum" "${disc:-}"
+done < tests/expected.txt
 git push origin HEAD:main
 git fetch -q origin
 git status -sb | head -1

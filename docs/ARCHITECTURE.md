@@ -40,6 +40,20 @@ Net saving is ~0.9MB. Running `!Draw` and `!Paint` together will reload a unit e
 
 Machine state lives in r14 on SH-4 (`-ffixed-r14` is required, or GCC borrows the register) which saves ~0.5MB and gained ~14% idle throughput on the console.
 
+## Storage
+
+`src/fdc.c` is a native driver behind the WD1772 registers, so RISC OS's own ADFS and FileCore run unchanged, including their FIQ byte transfers. The disc (`assets/adfs.adf.gz`) is an 800KB ADFS E image that RISC OS formatted itself on the harness via `tests/format.replay`. It loads into RAM at boot, so writes work but vanish at power off.
+
+Things that bit us, for whoever touches this next:
+
+- IOC control bit 2 set means a disc is present
+- Sector IDs have to arrive at about 40ms each. ADFS collects a track's IDs into a 512-byte stack buffer until a timer says one revolution passed, so answering instantly overruns the buffer and smashes the stack
+- ADFS copies a different FIQ routine to the vector page per operation, and runs one from the SVC stack. Those words are in `trace/ramwords.txt`
+
+Harness: `DREAM_ADF` loads an image (a missing file means blank), `DREAM_ADF_OUT` saves it on exit, and the replay verb `type` drives the keyboard.
+
+Console check (10/31): opened `:0` in the Filer with the checksum matching the harness. Reading from a physical disc or GDEMU is untested, and writing has only run on the harness.
+
 ## Considerations
 
 - Size: ~1.2MB of ARM becomes ~8.5MB of SH-4 plus ~1MB of tables, so ~7x. Out-of-line memory helpers and whole-ROM flag liveness are already in, and the latter only saved ~1%
@@ -71,5 +85,5 @@ Heartbeat builds use `HW_LOG=1`, and `HW_REPLAY=1` adds a generated `build/repla
 ## Next Steps
 
 1. Look at the real screen, try physical keyboard and mouse, and catch the boot hang if it recurs
-3. Storage: ADFS images from disc, then SD or VMU
+1. Persist saves: write the disc image to SD, or at least a small area to VMU
 4. Sound through AICA, and a true 640x480 desktop mode

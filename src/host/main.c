@@ -45,7 +45,7 @@ void plat_fatal(const char *fmt, ...)
 		extern u32 mach_miss_pc;
 		u32 mach_peek(u32 addr);
 		FILE *f = fopen("build/miss.txt", "w");
-		for (u32 a = (mach_miss_pc & ~3u) - 0x800; f && mach_miss_pc && a < mach_miss_pc + 0x800; a += 4)
+		for (u32 a = mach_miss_pc > 0x800 ? (mach_miss_pc & ~3u) - 0x800 : 0; f && mach_miss_pc && a < mach_miss_pc + 0x800; a += 4)
 			fprintf(f, "%08X\n", mach_peek(a));
 		if (f)
 			fclose(f);
@@ -110,11 +110,54 @@ void plat_frame(const screen_t *screen)
 }
 
 /* Scripted input: "<seconds> move <dx> <dy>", "<seconds> button <mask>",
- * "<seconds> key <row> <col> <0|1>", "<seconds> shot <path>". */
+ * "<seconds> key <row> <col> <0|1>", "<seconds> shot <path>",
+ * "<seconds> type <text>" (\\n for Return). */
 static FILE *replay;
 static double next_time = -1;
 static char next_verb[32], next_arg[256];
 static int pending_dx, pending_dy, button_mask;
+
+/* Unshifted key positions by ASCII, and shifted ones below */
+static const struct { char c; u8 row, col, shift; } key_map[] = {
+	{'a',3,12,0},{'b',5,2,0},{'c',5,0,0},{'d',3,14,0},{'e',2,9,0},{'f',3,15,0},{'g',4,0,0},
+	{'h',4,1,0},{'i',2,14,0},{'j',4,2,0},{'k',4,3,0},{'l',4,4,0},{'m',5,4,0},{'n',5,3,0},
+	{'o',2,15,0},{'p',3,0,0},{'q',2,7,0},{'r',2,10,0},{'s',3,13,0},{'t',2,11,0},{'u',2,13,0},
+	{'v',5,1,0},{'w',2,8,0},{'x',4,15,0},{'y',2,12,0},{'z',4,14,0},{'0',1,10,0},{'1',1,1,0},
+	{'2',1,2,0},{'3',1,3,0},{'4',1,4,0},{'5',1,5,0},{'6',1,6,0},{'7',1,7,0},{'8',1,8,0},
+	{'9',1,9,0},{' ',5,15,0},{'.',5,6,0},{'-',1,11,0},{'/',5,7,0},{',',5,5,0},{'\n',4,7,0},
+	{':',4,5,1},{'$',1,4,1},{'*',1,8,1},{'"',1,2,1},{'_',1,11,1},{'!',1,1,1},{'=',1,12,0},
+	{'(',1,9,1},{')',1,10,1},{'&',1,7,1},
+};
+static char typing[256];
+static int type_pos, type_phase;
+
+static void type_step(void)
+{
+	char c = typing[type_pos];
+	int upper = c >= 'A' && c <= 'Z';
+	unsigned i;
+	if (!c)
+		return;
+	if (upper)
+		c = (char)(c - 'A' + 'a');
+	for (i = 0; i < sizeof(key_map) / sizeof(key_map[0]); i++) {
+		if (key_map[i].c != c)
+			continue;
+		int shift = upper || key_map[i].shift;
+		switch (type_phase) {
+		case 0: if (shift) mach_key(4, 12, 1); break;
+		case 1: mach_key(key_map[i].row, key_map[i].col, 1); break;
+		case 2: break;
+		case 3: mach_key(key_map[i].row, key_map[i].col, 0); break;
+		case 4: if (shift) mach_key(4, 12, 0); break;
+		}
+		break;
+	}
+	if (++type_phase == 8) {
+		type_phase = 0;
+		type_pos++;
+	}
+}
 
 static void replay_read(void)
 {
@@ -139,6 +182,12 @@ void plat_poll_input(void)
 			pending_dy += b;
 		} else if (!strcmp(next_verb, "button")) {
 			button_mask = a;
+		} else if (!strcmp(next_verb, "type")) {
+			int o = 0;
+			for (char *t = next_arg; *t && o < 255; t++, o++)
+				typing[o] = (t[0] == '\\' && t[1] == 'n') ? (t++, '\n') : t[0];
+			typing[o] = 0;
+			type_pos = type_phase = 0;
 		} else if (!strcmp(next_verb, "key")) {
 			mach_key(a, b, c);
 		} else if (!strcmp(next_verb, "shot")) {
@@ -152,6 +201,7 @@ void plat_poll_input(void)
 		}
 		replay_read();
 	}
+	type_step();
 	dx = pending_dx > 16 ? 16 : pending_dx < -16 ? -16 : pending_dx;
 	dy = pending_dy > 16 ? 16 : pending_dy < -16 ? -16 : pending_dy;
 	pending_dx -= dx;
@@ -168,6 +218,35 @@ void plat_rom_read(u32 page, u8 *dest)
 	memcpy(dest, rom + page * 0x8000, 0x8000);
 	pages_touched[page >> 5] |= 1u << (page & 31);
 	page_loads[page]++;
+}
+
+static u8 *disc_image;
+static u32 disc_bytes;
+
+u8 *plat_disc_load(u32 bytes)
+{
+	const char *path = getenv("DREAM_ADF");
+	FILE *f = path ? fopen(path, "rb") : NULL;
+	if (!path)
+		return NULL;
+	disc_image = calloc(1, bytes);
+	disc_bytes = bytes;
+	if (f) {
+		if (fread(disc_image, 1, bytes, f) != bytes)
+			fprintf(stderr, "short disc image %s\n", path);
+		fclose(f);
+	}
+	return disc_image;
+}
+
+static void disc_save(void)
+{
+	const char *path = getenv("DREAM_ADF_OUT");
+	FILE *f = path && disc_image ? fopen(path, "wb") : NULL;
+	if (f) {
+		fwrite(disc_image, 1, disc_bytes, f);
+		fclose(f);
+	}
 }
 
 const ov_header_t *plat_overlay_load(int unit)
@@ -232,6 +311,7 @@ int main(int argc, char **argv)
 		for (u32 v = 0; v < 0x20; v += 4)
 			fprintf(stderr, "vector %02X %08X\n", v, mach_peek(v));
 	}
+	disc_save();
 	fprintf(stderr, "overlay loads %u\n", mach_overlay_loads());
 	fprintf(stderr, "rom misses %u, pages touched %d\n", mach_rom_misses(),
 		__builtin_popcount(pages_touched[0]) + __builtin_popcount(pages_touched[1]));
