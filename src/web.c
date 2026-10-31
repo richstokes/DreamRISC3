@@ -907,12 +907,19 @@ static void *fetch_thread(void *arg)
 
 static void request(const char *url, int keep_history)
 {
+	want_keep_history = keep_history;
+	/* Built-in pages need no network, and this keeps harness replays deterministic */
+	if (!strncmp(url, "about:", 6)) {
+		char copy[MAX_URL];
+		snprintf(copy, sizeof(copy), "%s", url);
+		load(copy);
+		return;
+	}
 	if (!started) {
 		started = 1;
 		plat_thread_start(fetch_thread);
 	}
 	snprintf(want_url, sizeof(want_url), "%s", url);
-	want_keep_history = keep_history;
 	state = WEB_BUSY;
 	set_message("Starting");
 	want = 1;

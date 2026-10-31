@@ -10,4 +10,4 @@ tests/ping.replay 102 DFCA821F
 tests/netsetup.replay 90 67E7D1F2
 tests/tertis.replay 132 575AE6C3
 tests/tertis-exit.replay 152 3E845656
-tests/web.replay 98 9E05E1AA
+tests/web.replay 98 BC1BCB22
