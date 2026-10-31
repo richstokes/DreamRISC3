@@ -215,11 +215,7 @@ static void update_irq(void)
  * misses into the slow path and loads. Page 0 stays pinned: it holds the reset
  * code and is aliased at address 0. Slots are evicted by clock. */
 #define ROM_PAGES 64
-<<<<<<< HEAD
-#define COLD_SLOTS 3
-=======
 #define COLD_SLOTS 8
->>>>>>> 2e3cca7 (Stream ROM pages and app code from disc)
 /* Pages never touched in normal use. Everything else is hot, because the kernel
  * walks module headers and ResourceFS scans its files on every lookup. */
 static const u32 cold_pages[2] = {
