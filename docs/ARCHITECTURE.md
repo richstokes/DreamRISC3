@@ -175,7 +175,7 @@ tools/converge.sh tests/apps.replay 136
 
 Replays hold `move`, `button`, `key` and `shot` lines. Slam to a corner first for a fixed origin. Pointer scale is ~1.5px per unit across and down in mode 27, ~0.75 down in mode 12.
 
-The harness and the screen checksums read guest RAM, so neither one sees bugs in the Dreamcast display path in `src/dc/main.c`. Check that in Flycast by eye.
+The harness and the screen checksums read guest RAM, so neither one sees bugs in the Dreamcast display path in `src/dc/main.c`. Check that in Flycast by eye. A window capture goes stale while another window covers Flycast, so check an `HW_DUMP=1` framebuffer dump as well. `dump_screen` only fires on a replay's seventh `shot`, and serial is slow, so a dump takes a few minutes.
 
 ## Hardware Results (10/31)
 
