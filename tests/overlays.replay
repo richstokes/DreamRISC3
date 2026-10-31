@@ -1,16 +1,17 @@
 # Open Apps, then launch !Draw and !Paint, which live in overlays on disc.
+# By name rather than by icon, as the Apps window shifts whenever an app is added
 70 move -1000 1000
 74 move 55 -23
 76 button 1
 76.2 button 0
 84 move -1000 1000
+84 key 0 12 1
+84.1 key 0 12 0
+85 type filer_run resources:$.apps.!draw\n
 88 move 33 -249
-90 button 1
-90.1 button 0
-90.3 button 1
-90.4 button 0
+89 key 4 7 1
+89.1 key 4 7 0
 104 shot build/c1.ppm
-# By name rather than by icon, as the Apps window shifts whenever an app is added
 105 key 0 12 1
 105.1 key 0 12 0
 108 type filer_run resources:$.apps.!paint\n

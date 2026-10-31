@@ -1,5 +1,5 @@
 /* HTTP(S) fetch and HTML layout. A fixed width text grid suits the system font and
- * 4MB of guest RAM: a page becomes lines of styled runs, and !Browse just draws the
+ * 4MB of guest RAM: a page becomes lines of styled runs, and !Web just draws the
  * ones in view. No images, CSS or scripts. Everything here runs on the fetch thread
  * except the web_* entry points, which only swap and read finished pages. */
 #include <netdb.h>

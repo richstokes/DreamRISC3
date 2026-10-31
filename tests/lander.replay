@@ -1,14 +1,16 @@
 # Open Apps, launch !Lander, then fly: hold thrust, steer, fire.
+# Past the checksum point: keep flying over the land for benchmarks.
 70 move -1000 1000
 74 move 55 -23
 76 button 1
 76.2 button 0
 84 move -1000 1000
+84 key 0 12 1
+84.1 key 0 12 0
+85 type filer_run resources:$.apps.!lander\n
 88 move 217 -249
-90 button 1
-90.1 button 0
-90.3 button 1
-90.4 button 0
+89 key 4 7 1
+89.1 key 4 7 0
 100 shot build/l1.ppm
 104 shot build/l2.ppm
 104.5 button 1
@@ -20,7 +22,6 @@
 114 shot build/l6.ppm
 114.5 button 0
 120 shot build/l7.ppm
-# Past the checksum point: keep flying over the land for benchmarks.
 122 button 1
 125 move -30 20
 128 button 0

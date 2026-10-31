@@ -161,7 +161,7 @@ Flycast (10/31): `!Ping` launched by replay and ran through the real KOS driver 
 
 ## Browser
 
-`!Browse` is written from scratch. NetSurf is the obvious port, but it's far too big for 4MB of guest RAM, and every ARM binary it needs would have to go through the recompiler. A BASIC app can't lay out a page at a usable speed, so the split matches the network layer: `src/web.c` is native and runs on its own thread, and the app only draws lines it has already laid out, through SWIs +17 to +22 (Open, Back, Status, Info, Line, Click).
+`!Web` is written from scratch. NetSurf is the obvious port, but it's far too big for 4MB of guest RAM, and every ARM binary it needs would have to go through the recompiler. A BASIC app can't lay out a page at a usable speed, so the split matches the network layer: `src/web.c` is native and runs on its own thread, and the app only draws lines it has already laid out, through SWIs +17 to +22 (Open, Back, Status, Info, Line, Click).
 
 - Pages become a fixed grid in the system font, as lines of styled runs. Text, links, headings, lists, tables as rows, `pre`, entities, UTF-8 folded to Latin-1. No images, CSS, scripts or forms
 - HTTP/1.1 with redirects and chunked bodies. HTTPS is mbedTLS from kos-ports
@@ -178,7 +178,7 @@ Things that bit us:
 
 Console (10/31), real BBA under dcload, with the fetch started natively: info.cern.ch, and over HTTPS example.com, text.npr.org and en.wikipedia.org (cut at 96KB, 352 lines), with the desktop running throughout. Flycast fetched `about:home`, but crashed in its own process on a real connection, so it can't test this.
 
-Open question: this is the same launch problem as `!Ping`. Under dcload a scripted launch of `!Browse` didn't come up in 2 of 2 runs (`Filer_Run` and `WimpTask` alike), so the app and the fetch have not yet run together on a console. Needs a run from GDEMU with no dcload.
+Open question: this is the same launch problem as `!Ping`. Under dcload a scripted launch of `!Web` didn't come up in 2 of 2 runs (`Filer_Run` and `WimpTask` alike), so the app and the fetch have not yet run together on a console. Needs a run from GDEMU with no dcload.
 
 ## Considerations
 
@@ -223,4 +223,4 @@ Overlay files are padded to whole sectors. In Flycast a read of `ov_4.bin`'s sho
 1. Look at the real screen, try physical keyboard and mouse, and catch the boot hang if it recurs
 2. Use more of the card: FileCore in 3.11 tops out near 512MB per disc, so maybe several drives
 3. Listen to the sound on a console, and check mode 27 on a TV as well as VGA
-4. Network: run `!Ping` and `!Browse` on a console without dcload, dial a real DreamPi, try a real W5500, and exercise the socket SWIs from a BASIC program
+4. Network: run `!Ping` and `!Web` on a console without dcload, dial a real DreamPi, try a real W5500, and exercise the socket SWIs from a BASIC program

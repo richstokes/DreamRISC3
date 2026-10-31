@@ -1,26 +1,29 @@
-# Open Apps, then launch !Calc and !Chars and !Edit by double click.
+# Open Apps, then launch !Calc and !Chars and !Edit by name, as the Apps window reflows when apps are added.
 70 move -1000 1000
 74 move 55 -23
 76 button 1
 76.2 button 0
 84 move -1000 1000
+84 key 0 12 1
+84.1 key 0 12 0
+85 type filer_run resources:$.apps.!calc\n
 88 move 94 -292
-90 button 1
-90.1 button 0
-90.3 button 1
-90.4 button 0
+89 key 4 7 1
+89.1 key 4 7 0
 100 shot build/b1.ppm
+100 key 0 12 1
+100.1 key 0 12 0
 100.2 move -1000 1000
+101 type filer_run resources:$.apps.!chars\n
 104 move 157 -292
-106 button 1
-106.1 button 0
-106.3 button 1
-106.4 button 0
+105 key 4 7 1
+105.1 key 4 7 0
 116 shot build/b2.ppm
+116 key 0 12 1
+116.1 key 0 12 0
 116.2 move -1000 1000
+117 type filer_run resources:$.apps.!edit\n
 120 move 94 -249
-122 button 1
-122.1 button 0
-122.3 button 1
-122.4 button 0
+121 key 4 7 1
+121.1 key 4 7 0
 134 shot build/b3.ppm

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pages for testing !Browse on the harness: a redirect, chunked text and links.
+"""Pages for testing !Web on the harness: a redirect, chunked text and links.
 
 usage: tests/webserver.py [port]
 """

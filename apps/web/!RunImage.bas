@@ -1,4 +1,4 @@
-REM Browse: a window on the pages src/web.c fetches and lays out
+REM Web: a window on the pages src/web.c fetches and lays out
 REM A toolbar pane sits over the top of the page window
 DIM b% 1024, u% 192, title% 64, stat% 240, info% 240, line% 512, ibuf% 40, spare% 256
 swi%=&CDC00
@@ -9,8 +9,8 @@ cols%=76
 quit%=FALSE: lines%=0: oldstate%=0: bytes%=0
 $u%="about:home"
 $stat%=""
-$title%="Browse"
-SYS "Wimp_Initialise",200,&4B534154,"Browse" TO ,task%
+$title%="Web"
+SYS "Wimp_Initialise",200,&4B534154,"Web" TO ,task%
 PROCwindows
 PROCopen
 SYS "Wimp_SetCaretPosition",bar%,1,0,0,-1,LEN($u%)

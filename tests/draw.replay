@@ -4,11 +4,12 @@
 76 button 1
 76.2 button 0
 84 move -1000 1000
+84 key 0 12 1
+84.1 key 0 12 0
+85 type filer_run resources:$.apps.!draw\n
 88 move 33 -249
-90 button 1
-90.1 button 0
-90.3 button 1
-90.4 button 0
+89 key 4 7 1
+89.1 key 4 7 0
 105 move -1000 1000
 106.5 move 355 -20
 108 button 1

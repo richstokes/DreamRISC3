@@ -1,4 +1,4 @@
-/* Web page fetch and layout for !Browse. The work happens on a thread of its own,
+/* Web page fetch and layout for !Web. The work happens on a thread of its own,
  * so like net.h this stays free of cpu.h and never touches machine state. The
  * guest reads finished pages, which swap in whole when web_status is called. */
 #ifndef WEB_H
