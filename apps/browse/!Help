@@ -1,0 +1,5 @@
+Browse is a small text web browser. Type an address and press Return, click
+links to follow them, and use Back to go back.
+
+It shows text only: no pictures, styles, scripts or forms. Secure (https) sites
+are encrypted but not verified, so don't type anything private.

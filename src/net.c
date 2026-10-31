@@ -6,12 +6,13 @@
 #include <string.h>
 #include "cpu.h"
 #include "net.h"
+#include "web.h"
 
 enum {
 	DN_STATUS, DN_CONNECT, DN_DISCONNECT, DN_PING, DN_PING_RESULT, DN_RESOLVE,
 	DN_RESOLVE_RESULT, DN_GET_CONFIG, DN_SAVE_CONFIG, DN_SOCK_OPEN, DN_SOCK_BIND,
 	DN_SOCK_CONNECT, DN_SOCK_SEND, DN_SOCK_RECV, DN_SOCK_SENDTO, DN_SOCK_RECVFROM,
-	DN_SOCK_CLOSE,
+	DN_SOCK_CLOSE, DN_WEB_OPEN, DN_WEB_BACK, DN_WEB_STATUS, DN_WEB_INFO, DN_WEB_LINE, DN_WEB_CLICK,
 };
 
 #define ERR_INVAL 22
@@ -113,6 +114,9 @@ void net_swi(u32 op)
 	static net_status_t status;
 	static net_config_t config;
 	static char name[64];
+	static char url[192];
+	static web_info_t info;
+	static u8 line[512];
 	u8 ip[4];
 	u32 a, b;
 	s32 result = 0;
@@ -186,6 +190,31 @@ void net_swi(u32 op)
 		break;
 	case DN_SOCK_CLOSE:
 		result = net_sock_close((int)R(0));
+		break;
+	case DN_WEB_OPEN:
+		guest_string(R(0), url, sizeof(url));
+		web_open(url);
+		break;
+	case DN_WEB_BACK:
+		web_back();
+		break;
+	case DN_WEB_STATUS: {
+		int lines, bytes;
+		result = web_status(&lines, &bytes);
+		R(1) = (u32)lines;
+		R(2) = (u32)bytes;
+		break;
+	}
+	case DN_WEB_INFO:
+		web_info(&info);
+		guest_write(R(0), &info, sizeof(info));
+		break;
+	case DN_WEB_LINE:
+		result = web_line((int)R(0), line, sizeof(line));
+		guest_write(R(1), line, (u32)result);
+		break;
+	case DN_WEB_CLICK:
+		result = web_click((int)R(0), (int)R(1));
 		break;
 	default:
 		result = -ERR_INVAL;

@@ -159,6 +159,27 @@ Open question: under dcload a scripted `!Ping` launch only opened 1 time in 3, w
 
 Flycast (10/31): `!Ping` launched by replay and ran through the real KOS driver against the emulated BBA (DHCP, ICMP replies at 2-22ms) and emulated modem (PPP at 33600, replies at 60-80ms).
 
+## Browser
+
+`!Browse` is written from scratch. NetSurf is the obvious port, but it's far too big for 4MB of guest RAM, and every ARM binary it needs would have to go through the recompiler. A BASIC app can't lay out a page at a usable speed, so the split matches the network layer: `src/web.c` is native and runs on its own thread, and the app only draws lines it has already laid out, through SWIs +17 to +22 (Open, Back, Status, Info, Line, Click).
+
+- Pages become a fixed grid in the system font, as lines of styled runs. Text, links, headings, lists, tables as rows, `pre`, entities, UTF-8 folded to Latin-1. No images, CSS, scripts or forms
+- HTTP/1.1 with redirects and chunked bodies. HTTPS is mbedTLS from kos-ports
+- **Certificates are not checked.** There's no CA store and no trusted clock, so HTTPS stops a passive listener but doesn't prove who you're talking to. Fine for reading, not for anything private, and the home page says so
+- Memory: mbedTLS adds ~410KB of code, so only ~400KB of heap is free without an SD card (the floppy image costs 0.8MB) and ~1.2MB with one. Connections are set up before the page buffer, which falls back from 96KB to 32KB. Longer pages are cut short
+
+The harness has no TLS, but its sockets are real: `tests/webserver.py` serves a redirect, chunked text and a link. Replays in the checked set only use the built-in `about:home`, so they need no server.
+
+Things that bit us:
+
+- KOS `malloc` isn't zeroed where the Mac's fresh memory happened to be. A missing `line_at[0] = 0` hung the console and not the harness
+- newlib's errno values aren't BSD's, so `net_sock.c` maps the ones that drive control flow
+- In BASIC an uppercase name starting with a keyword tokenises as that keyword, so `LINEH` is `LINE H`
+
+Console (10/31), real BBA under dcload, with the fetch started natively: info.cern.ch, and over HTTPS example.com, text.npr.org and en.wikipedia.org (cut at 96KB, 352 lines), with the desktop running throughout. Flycast fetched `about:home`, but crashed in its own process on a real connection, so it can't test this.
+
+Open question: this is the same launch problem as `!Ping`. Under dcload a scripted launch of `!Browse` didn't come up in 2 of 2 runs (`Filer_Run` and `WimpTask` alike), so the app and the fetch have not yet run together on a console. Needs a run from GDEMU with no dcload.
+
 ## Considerations
 
 - Size: ~1.2MB of ARM becomes ~8.5MB of SH-4 plus ~1MB of tables, so ~7x. Out-of-line memory helpers and whole-ROM flag liveness are already in, and the latter only saved ~1%
@@ -202,4 +223,4 @@ Overlay files are padded to whole sectors. In Flycast a read of `ov_4.bin`'s sho
 1. Look at the real screen, try physical keyboard and mouse, and catch the boot hang if it recurs
 2. Use more of the card: FileCore in 3.11 tops out near 512MB per disc, so maybe several drives
 3. Listen to the sound on a console, and check mode 27 on a TV as well as VGA
-4. Network: run `!Ping` on a console without dcload, dial a real DreamPi, try a real W5500, and exercise the socket SWIs from a BASIC program
+4. Network: run `!Ping` and `!Browse` on a console without dcload, dial a real DreamPi, try a real W5500, and exercise the socket SWIs from a BASIC program

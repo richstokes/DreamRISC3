@@ -1,10 +1,14 @@
 /* Harness network: a scripted link in virtual time, so replays stay deterministic
  * and screen checksums can cover the network apps. Comes up 3s after a connect, and
  * answers pings from every address except x.x.x.254. Sockets are the Mac's own. */
+#include <pthread.h>
 #include <stdio.h>
 #include <string.h>
 #include "../cpu.h"
+#include <time.h>
+#include <unistd.h>
 #include "../net.h"
+#include "../web.h"
 
 #define UP_DELAY_US 3000000u
 #define RTT_BASE_US 12000u
@@ -118,4 +122,53 @@ int plat_net_resolve_result(uint8_t ip[4])
 	if (resolve_state > 0)
 		memcpy(ip, resolve_ip, 4);
 	return resolve_state;
+}
+
+/* The browser's thread. It only touches web.c's own state, so it doesn't disturb
+ * replays, and TLS is left to the console. */
+web_tls_t *plat_tls_open(int fd, const char *host)
+{
+	(void)fd;
+	(void)host;
+	return NULL;
+}
+
+int plat_tls_read(web_tls_t *tls, void *data, int len)
+{
+	(void)tls;
+	(void)data;
+	(void)len;
+	return -1;
+}
+
+int plat_tls_write(web_tls_t *tls, const void *data, int len)
+{
+	(void)tls;
+	(void)data;
+	(void)len;
+	return -1;
+}
+
+void plat_tls_close(web_tls_t *tls)
+{
+	(void)tls;
+}
+
+void plat_thread_start(void *(*fn)(void *))
+{
+	pthread_t t;
+	pthread_create(&t, NULL, fn, NULL);
+	pthread_detach(t);
+}
+
+void plat_sleep_ms(int ms)
+{
+	usleep((useconds_t)ms * 1000);
+}
+
+uint64_t plat_wall_ms(void)
+{
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return (uint64_t)t.tv_sec * 1000 + (uint64_t)t.tv_nsec / 1000000;
 }

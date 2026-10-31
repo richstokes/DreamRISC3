@@ -1,0 +1,3 @@
+Set Browse$Dir <Obey$Dir>
+WimpSlot -min 96K -max 96K
+Run <Browse$Dir>.!RunImage

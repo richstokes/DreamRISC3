@@ -12,6 +12,9 @@
 /* RISC OS numbers these the BSD way, unlike newlib */
 #define GUEST_EWOULDBLOCK 35
 #define GUEST_EINPROGRESS 36
+#define GUEST_EALREADY 37
+#define GUEST_EISCONN 56
+#define GUEST_ENOTCONN 57
 
 static int fail(void)
 {
@@ -19,6 +22,12 @@ static int fail(void)
 		return -GUEST_EWOULDBLOCK;
 	if (errno == EINPROGRESS)
 		return -GUEST_EINPROGRESS;
+	if (errno == EALREADY)
+		return -GUEST_EALREADY;
+	if (errno == EISCONN)
+		return -GUEST_EISCONN;
+	if (errno == ENOTCONN)
+		return -GUEST_ENOTCONN;
 	return -errno;
 }
 
