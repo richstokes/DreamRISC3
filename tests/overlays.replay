@@ -11,7 +11,7 @@
 90.4 button 0
 104 shot build/c1.ppm
 104.2 move -1000 1000
-108 move 217 -265
+108 move 33 -221
 110 button 1
 110.1 button 0
 110.3 button 1

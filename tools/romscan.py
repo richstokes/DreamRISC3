@@ -117,8 +117,12 @@ SKIP_MODULES = {
 ENTRIES = set()  # every address reached indirectly or by branch: needs a block entry
 
 
-def walk(rom, seeds):
-    """Return ROM offsets reached by static control flow, jump tables and ADR."""
+def walk(rom, seeds, base=ROM_BASE):
+    """Return image offsets reached by static control flow, jump tables and ADR.
+
+    Apps pass their load address as base. ROM code has few inline strings and they
+    were found by tracing, but apps are walked statically, so step over OS_WriteS.
+    """
     seen, stack, forced = set(), list(seeds), set(seeds)
     while stack:
         pc = stack.pop()
@@ -133,7 +137,7 @@ def walk(rom, seeds):
             if klass == 5:  # B / BL
                 target = pc + 8 + (((insn & 0xFFFFFF) ^ 0x800000) - 0x800000) * 4
                 target &= 0x3FFFFFF  # 26-bit PC; reset branches wrap into high ROM
-                stack.append(target - ROM_BASE if target >= ROM_BASE else target)
+                stack.append(target - base if target >= base else target)
                 if insn & (1 << 24) == 0 and cond == 0xE:
                     break
             elif insn & 0x0FEF0000 in (0x028F0000, 0x024F0000):  # ADR
@@ -151,6 +155,9 @@ def walk(rom, seeds):
             if cond == 0xE and writes_pc(insn):
                 break
             pc += 4
+            if base != ROM_BASE and insn & 0xFFFDFFFF == 0xEF000001:
+                pc = (rom.index(b"\0", pc) + 4) & ~3
+                ENTRIES.add(pc)
     return seen
 
 

@@ -11,7 +11,8 @@ from pathlib import Path
 
 import re
 
-from romscan import ENTRIES, ROM_BASE, SKIP_MODULES, find_chain, load_rom, module_info, sweep, walk, word
+from mkapps import load_apps
+from romscan import ENTRIES, ROM_BASE, SKIP_MODULES, find_chain, module_info, sweep, walk, word
 
 MASK26 = 0x3FFFFFC
 # Code outside the boot trace in these modules lives on disc, one unit in memory at
@@ -26,6 +27,7 @@ OVERLAYS = {
              "SerialDeviceSupport", "ParallelDeviceDriver", "Podule"},
 }
 RAM_IMAGES = {"WaveSynth", "StringLib", "Percussion"}
+ROM_BYTES = 0x200000
 CHUNK = 3000
 COND = ["F_Z", "!F_Z", "F_C", "!F_C", "F_N", "!F_N", "F_V", "!F_V",
         "(F_C&&!F_Z)", "(!F_C||F_Z)", "(F_N==F_V)", "(F_N!=F_V)",
@@ -439,16 +441,16 @@ def collect(rom, traces, extra):
     return code, jumps | set(extra), ram, traced
 
 
-def leaders(rom, code, jumps):
+def leaders(rom, code, jumps, base=ROM_BASE):
     lead = {o for o in jumps if o in code}
     lead |= {0x1AC} | ENTRIES
     for pc in code:
         i = word(rom, pc)
         k = (i >> 25) & 7
         if k == 5:
-            target = (ROM_BASE + pc + 8 + (((i & 0xFFFFFF) ^ 0x800000) - 0x800000) * 4) & 0x3FFFFFF
-            if target >= ROM_BASE and target - ROM_BASE in code:
-                lead.add(target - ROM_BASE)
+            target = (base + pc + 8 + (((i & 0xFFFFFF) ^ 0x800000) - 0x800000) * 4) & 0x3FFFFFF
+            if target >= base and target - base in code:
+                lead.add(target - base)
             if i & (1 << 24):
                 lead.add(pc + 4)
         elif k >= 6:
@@ -476,13 +478,13 @@ def block_insns(rom, start, lead, code):
     return insns
 
 
-def branch_target(pc, i):
-    """ROM offset of a direct branch, or None if it leaves the ROM."""
-    target = (ROM_BASE + pc + 8 + (((i & 0xFFFFFF) ^ 0x800000) - 0x800000) * 4) & 0x3FFFFFF
-    return target - ROM_BASE if target >= ROM_BASE else None
+def branch_target(pc, i, base):
+    """Image offset of a direct branch, or None if it leaves the image."""
+    target = (base + pc + 8 + (((i & 0xFFFFFF) ^ 0x800000) - 0x800000) * 4) & 0x3FFFFFF
+    return target - base if target >= base else None
 
 
-def flag_liveness(rom, lead, code):
+def flag_liveness(rom, lead, code, base=ROM_BASE):
     """Backward dataflow over the whole ROM: which flags each instruction must set.
 
     Indirect exits, SWIs and calls keep everything live, because R14 captures the
@@ -502,7 +504,7 @@ def flag_liveness(rom, lead, code):
                 live_after[pc] = live
             klass = (i >> 25) & 7
             if klass == 5 and not i & (1 << 24):
-                target = branch_target(pc, i)
+                target = branch_target(pc, i, base)
                 taken = live_in.get(target, NZCV_ALL)
                 live = frozenset(taken) if i >> 28 == 14 else live | taken
             elif uses_psr(i) or klass >= 6 or writes_pc_any(i) or psr_side_effect(i):
@@ -525,7 +527,7 @@ def flag_liveness(rom, lead, code):
     return live_after
 
 
-def block(rom, start, lead, code, known, exact_end, live_after):
+def block(rom, start, lead, code, known, exact_end, live_after, base=ROM_BASE):
     src = []
     noted = False
     insns = block_insns(rom, start, lead, code)
@@ -535,12 +537,12 @@ def block(rom, start, lead, code, known, exact_end, live_after):
         # whose self test resumes after a deliberate abort.
         note = is_memory(i) and (not noted or pc < exact_end)
         noted = noted or is_memory(i)
-        e = Emit(ROM_BASE + pc, i)
+        e = Emit(base + pc, i)
         e.translate(known, live, note)
         src.extend(e.out)
     end = insns[-1]
     if not ends_block(end[1]) and not (psr_side_effect(end[1]) and end[1] >> 28 == 14):
-        next_pc = ROM_BASE + end[0] + 4
+        next_pc = base + end[0] + 4
         if next_pc in known:
             src.append(f"TAIL(A_{next_pc:07x}(_u));")
         else:
@@ -556,15 +558,115 @@ def ram_block(insn):
     return e.out
 
 
+def app_code(app):
+    """Recompile one bundled app: (base, end, entry, entry word, functions, insns)."""
+    entry = next(e for e in app["files"] if e["name"] == app["code"]["file"])
+    image, base, exec_addr = entry["data"], int(entry["load"], 16), int(entry["exec"], 16)
+    seeds = [exec_addr - base] + [int(s, 16) - base for s in app["code"]["seeds"]]
+    for table, count in app["code"].get("tables", []):
+        seeds += [word(image, int(table, 16) - base + n * 4) - base for n in range(count)]
+    ENTRIES.clear()
+    code = walk(image, seeds, base)
+    lead = leaders(image, code, set(seeds), base)
+    live_after = flag_liveness(image, lead, code, base)
+    known = {base + o for o in lead}
+    funcs = [(f"A_{base + start:07x}", base + start, block(image, start, lead, code, known, 0, live_after, base))
+             for start in sorted(lead)]
+    entries = {base + o for o in seeds} | {base + o + 4 for o in code if (word(image, o) >> 25) & 7 >= 6
+                                           or (word(image, o) >> 24) & 15 == 11}
+    entries |= {base + o for o in ENTRIES}
+    for o in code:  # polls land on backward branch targets
+        i = word(image, o)
+        if (i >> 25) & 7 == 5 and base + o + 8 + (((i & 0xFFFFFF) ^ 0x800000) - 0x800000) * 4 <= base + o:
+            entries.add(base + o + 8 + (((i & 0xFFFFFF) ^ 0x800000) - 0x800000) * 4)
+    return base, base + len(image), exec_addr, word(image, exec_addr - base), funcs, len(code), entries & known
+
+
+def hash_table(entries, name):
+    size = 1
+    while size * 7 < len(entries) * 8:
+        size *= 2
+    slots = [None] * size
+    for key, fn in entries:
+        slot = ((key >> 2) * 2654435761 & 0xFFFFFFFF) >> 8 & (size - 1)
+        while slots[slot]:
+            slot = (slot + 1) & (size - 1)
+        slots[slot] = (key, fn)
+    text = [f"const u32 {name}_mask={size - 1}u;\nconst block_t {name}[{size}]={{\n"]
+    text += [f"{{{e[0]:#x}u,{e[1]}}},\n" if e else "{0,0},\n" for e in slots]
+    text.append("};\n")
+    return text
+
+
+def inline_memory(text):
+    """Swap the memory helpers for inline fast paths, in app units only."""
+    text = re.sub(r"\b(ld32|ld8|st32|st8)\(", r"\1i(", text)
+
+    def regs(mask):
+        return [r for r in range(15) if mask >> r & 1]
+
+    def ldm(m):
+        rs = regs(int(m.group(1), 16))
+        body = " ".join(f"C->r[{r}]=q[{i}];" for i, r in enumerate(rs))
+        return (f"{{u32 *q=block_at(C->rt,a,{len(rs) * 4}u); if(LIKELY(q)){{{body} a+={len(rs) * 4}u;}} "
+                f"else a=ldm_regs(a,{m.group(1)}u);}}")
+
+    def stm(m):
+        rs = regs(int(m.group(1), 16))
+        body = " ".join(f"q[{i}]=C->r[{r}];" for i, r in enumerate(rs))
+        return (f"{{u32 *q=block_at(C->wt,a,{len(rs) * 4}u); if(LIKELY(q)){{{body}}} "
+                f"else stm_regs(a,{m.group(1)}u);}}")
+
+    text = re.sub(r"a=ldm_regs\(a,(0x[0-9a-f]+)u\);", ldm, text)
+    return re.sub(r"stm_regs\(a,(0x[0-9a-f]+)u\);", stm, text)
+
+
+def app_unit(number, unit, unit_funcs, image):
+    """One app as a single file, so the compiler can merge its blocks.
+
+    Only addresses reached indirectly are visible to dispatch. Apps share their
+    addresses with whatever else runs there, so an entry from outside only counts
+    if memory still holds the instruction it was compiled from. Inside the unit a
+    return goes straight through app_map.
+    """
+    base, end, entries = unit[0], unit[1], sorted(unit[6])
+    last = max(f[1] for f in unit_funcs)
+    text = ['#include "appunit.h"\n']
+    text += [f"static void {f[0]}(u32);\n" for f in unit_funcs]
+    table = hash_table([(pc, f"A_{pc:07x}") for pc in entries], f"ov_table_{number}")
+    mask = re.search(rf"ov_table_{number}_mask=(\d+)u", table[0]).group(1)
+    slots = re.findall(r"^\{(0x[0-9a-f]+u|0),", "".join(table), re.M)
+    guards = [word(image, int(k[:-1], 16) - base) if k != "0" else 0 for k in slots]
+    text.append(f"static const block_fn app_map[{(last - base) // 4 + 1}]={{")
+    text += [f"[{(pc - base) // 4}]=A_{pc:07x}," for pc in entries]
+    text.append("};\n")
+    text.append(f"static void app_jump(u32 pc){{u32 i=pc-{base:#x}u; "
+                f"if(LIKELY(i<={last - base:#x}u&&!(i&3)&&--C->budget>=0)){{block_fn f=app_map[i>>2]; "
+                f"if(LIKELY(f!=0)) TAIL(f(pc));}} TAIL(dispatch(pc));}}\n")
+    for name, _, _, src in unit_funcs:
+        body = "\n".join(src)
+        body = re.sub(r"TAIL\(dispatch\(\(", "TAIL(app_jump((", body)
+        body = inline_memory(body)
+        body = re.sub(r"C->r\[(\d+)\]", lambda m: f"C->s[{slot(int(m.group(1)))}]", body)
+        text.append(f"static void {name}(u32 _u){{\n{body}\n}}\n")
+    text += table
+    text.append(f"static const u32 ov_guard_{number}[]={{" + ",".join(f"{v:#x}u" for v in guards) + "};\n")
+    text.append(f"const ov_header_t ov_header_{number} OV_SECTION="
+                f"{{OV_MAGIC,ov_table_{number},{mask}u,ov_guard_{number}}};\n")
+    return "".join(text)
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("rom_dir")
+    parser.add_argument("rom", help="rom.bin from mkapps.py")
     parser.add_argument("out_dir")
     parser.add_argument("--trace", action="append", default=[])
     parser.add_argument("--seeds", help="text file of extra ROM entry points")
     parser.add_argument("--ram-words", help="text file of extra RAM instruction words")
     args = parser.parse_args()
-    rom = load_rom(args.rom_dir)
+    image = Path(args.rom).read_bytes()
+    rom = image[:ROM_BYTES]
+    apps = load_apps(Path(args.rom).parent / "upstream")
     extra = []
     if args.seeds and Path(args.seeds).exists():
         for line in Path(args.seeds).read_text().split("\n"):
@@ -600,6 +702,7 @@ def main():
         unit = unit_of.get(start)
         known = resident if unit is None else unit_known[unit]
         funcs.append((name, ROM_BASE + start, unit, block(rom, start, lead, code, known, kernel_end, live_after)))
+    app_units = [app_code(app) for app in apps]
     words = {insn for _, insn in ram}
     if args.ram_words and Path(args.ram_words).exists():
         for line in Path(args.ram_words).read_text().split("\n"):
@@ -635,21 +738,11 @@ def main():
     write_chunks(residents, "xlat")
     for index in range(len(OVERLAYS)):
         write_chunks([f for f in funcs if f[2] == index], f"ov_{index}")
-
-    def hash_table(entries, name):
-        size = 1
-        while size * 7 < len(entries) * 8:
-            size *= 2
-        slots = [None] * size
-        for key, fn in entries:
-            slot = ((key >> 2) * 2654435761 & 0xFFFFFFFF) >> 8 & (size - 1)
-            while slots[slot]:
-                slot = (slot + 1) & (size - 1)
-            slots[slot] = (key, fn)
-        text = [f"const u32 {name}_mask={size - 1}u;\nconst block_t {name}[{size}]={{\n"]
-        text += [f"{{{e[0]:#x}u,{e[1]}}},\n" if e else "{0,0},\n" for e in slots]
-        text.append("};\n")
-        return text
+    first_app = len(OVERLAYS)
+    units = len(OVERLAYS) + len(app_units)
+    app_funcs = {}
+    for index, unit in enumerate(app_units):
+        app_funcs[first_app + index] = [(name, pc, first_app + index, src) for name, pc, src in unit[4]]
 
     rom_entries = [(pc, name) for name, pc, unit, _ in residents if pc]
     lines = ['#include "cpu.h"\n']
@@ -658,24 +751,35 @@ def main():
     lines += hash_table([(w, name) for name, w in ram_funcs], "ram_table")
     lines.append(f"const ov_range_t ov_ranges[{len(ranges)}]={{\n")
     lines += [f"{{{ROM_BASE + a:#x}u,{ROM_BASE + b:#x}u,{u}}},\n" for a, b, u in ranges]
-    lines.append(f"}};\nconst u32 ov_range_count={len(ranges)}u;\nconst u32 ov_units={len(OVERLAYS)}u;\n")
+    lines.append(f"}};\nconst u32 ov_range_count={len(ranges)}u;\nconst u32 ov_units={units}u;\n")
+    lines.append(f"const ov_app_t ov_apps[{len(app_units) + 1}]={{\n")
+    lines += [f"{{{u[0]:#x}u,{u[1]:#x}u,{u[2]:#x}u,{u[3]:#x}u,{first_app + i},"
+              f"{apps[i]['code'].get('frame_us', 20000)}}},\n" for i, u in enumerate(app_units)]
+    lines.append(f"{{0,0,0,0,0,0}}}};\nconst u32 ov_app_count={len(app_units)}u;\n")
+    lines.append(f"const u32 rom_ext_pages={(len(image) - ROM_BYTES) // 0x8000}u;\n")
     for index in range(len(OVERLAYS)):
         unit_funcs = [f for f in funcs if f[2] == index]
         table = hash_table([(f[1], f[0]) for f in unit_funcs], f"ov_table_{index}")
         mask = re.search(rf"ov_table_{index}_mask=(\d+)u", table[0]).group(1)
         text = ['#include "cpu.h"\n'] + [f"void {f[0]}(u32);\n" for f in unit_funcs] + table
         text.append(f"const ov_header_t ov_header_{index} OV_SECTION="
-                    f"{{OV_MAGIC,ov_table_{index},{mask}u}};\n")
+                    f"{{OV_MAGIC,ov_table_{index},{mask}u,0}};\n")
         (out / f"ov_{index}_table.c").write_text("".join(text))
+    for index, unit in enumerate(app_units):
+        number = first_app + index
+        entry = next(e for e in apps[index]["files"] if e["name"] == apps[index]["code"]["file"])
+        (out / f"ov_{number}_table.c").write_text(app_unit(number, unit, app_funcs[number], entry["data"]))
     index_text = ['#include "cpu.h"\n']
-    index_text += [f"extern const ov_header_t ov_header_{i};\n" for i in range(len(OVERLAYS))]
+    index_text += [f"extern const ov_header_t ov_header_{i};\n" for i in range(units)]
     index_text.append("const ov_header_t *const ov_headers[]={")
-    index_text += [f"&ov_header_{i}," for i in range(len(OVERLAYS))]
+    index_text += [f"&ov_header_{i}," for i in range(units)]
     index_text.append("};\n")
     (out / "ov_index.c").write_text("".join(index_text))
     (out / "xlat_table.c").write_text("".join(lines))
     instructions = len(code) + len(words)
     print(f"overlay blocks {len(unit_of)} of {len(lead)}")
+    for app, unit in zip(apps, app_units):
+        print(f"app {app['name']}: {unit[5]} insns, {len(unit[4])} blocks")
     print(f"code {len(code)} insns, ram words {len(words)}, blocks {len(funcs)}, "
           f"chunks {len(funcs) // CHUNK + 1}, {instructions * 4} ARM bytes")
 

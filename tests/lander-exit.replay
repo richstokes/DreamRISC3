@@ -1,0 +1,26 @@
+# Launch !Lander, quit with Escape, check the desktop, launch it again.
+70 move -1000 1000
+74 move 55 -23
+76 button 1
+76.2 button 0
+84 move -1000 1000
+88 move 217 -265
+90 button 1
+90.1 button 0
+90.3 button 1
+90.4 button 0
+104 button 1
+108 button 0
+110 key 0 0 1
+110.2 key 0 0 0
+120 shot build/x1.ppm
+122 button 1
+122.1 button 0
+128 move -1000 1000
+132 move 217 -265
+134 button 1
+134.1 button 0
+134.3 button 1
+134.4 button 0
+150 button 1
+154 shot build/x2.ppm

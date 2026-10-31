@@ -3,10 +3,14 @@ GEN = build/gen
 HOSTOBJ = build/host
 TRACES = --trace trace/boot
 
-.PHONY: gen host dc cdi mkdcdisc clean
+.PHONY: rom gen host dc cdi mkdcdisc clean
 
-gen:
-	python3 tools/armxlat.py $(ROM_DIR) $(GEN) $(TRACES) --seeds trace/seeds.txt --ram-words trace/ramwords.txt
+# The ROM plus bundled apps. Rebuilt every time, as cheap as checking its inputs.
+rom:
+	python3 tools/mkapps.py $(ROM_DIR) build
+
+gen: rom
+	python3 tools/armxlat.py build/rom.bin $(GEN) $(TRACES) --seeds trace/seeds.txt --ram-words trace/ramwords.txt
 
 XLAT_SRC = $(wildcard $(GEN)/xlat_*.c)
 OV_SRC = $(wildcard $(GEN)/ov_*.c)
@@ -41,16 +45,13 @@ XLAT_DC = $(patsubst $(GEN)/%.c,$(DCOBJ)/%.o,$(XLAT_SRC))
 OV_DC = $(patsubst $(GEN)/%.c,$(DCOBJ)/%.o,$(filter-out $(GEN)/ov_index.c,$(OV_SRC)))
 DCFLAGS = $(KOS_CFLAGS) -ffixed-r14 -Os -fno-strict-aliasing -Wno-unused-value -Wno-unused-variable -Isrc
 
-build/rom.bin: $(ROM_DIR)/IC24.ROM
-	cat $(ROM_DIR)/IC24.ROM $(ROM_DIR)/IC25.ROM $(ROM_DIR)/IC26.rom $(ROM_DIR)/IC27.ROM > $@
-
 $(DCOBJ)/%.o: $(GEN)/%.c src/cpu.h
 	@mkdir -p $(DCOBJ)
 	@$(KOS_CC) $(DCFLAGS) -c $< -o $@
 
 $(DCOBJ)/mach.o: src/mach.c src/cpu.h
 	@mkdir -p $(DCOBJ)
-	$(KOS_CC) $(DCFLAGS) -O2 -c $< -o $@
+	$(KOS_CC) $(DCFLAGS) -O2 $(if $(HW_LOG),-DHW_LOG) -c $< -o $@
 
 $(DCOBJ)/fdc.o: src/fdc.c src/cpu.h
 	@mkdir -p $(DCOBJ)
@@ -58,13 +59,13 @@ $(DCOBJ)/fdc.o: src/fdc.c src/cpu.h
 
 $(DCOBJ)/main.o: src/dc/main.c src/cpu.h
 	@mkdir -p $(DCOBJ)
-	$(KOS_CC) $(DCFLAGS) $(if $(HW_LOG),-DHW_LOG '-DPC_ROOT="$(CURDIR)/build/disc"') $(if $(HW_REPLAY),-DHW_REPLAY -Ibuild) -c $< -o $@
+	$(KOS_CC) $(DCFLAGS) $(if $(HW_LOG),-DHW_LOG '-DPC_ROOT="$(CURDIR)/build/disc"') $(if $(HW_REPLAY),-DHW_REPLAY -Ibuild) $(if $(HW_DUMP),-DHW_DUMP) -c $< -o $@
 
 $(DCOBJ)/images.o: src/dc/images.S assets/cmos.bin
 	@mkdir -p $(DCOBJ)
 	$(KOS_CC) -c $< -o $@
 
-dc: build/dreamrisc.elf $(OV_DC) build/rom.bin
+dc: build/dreamrisc.elf $(OV_DC)
 
 build/dreamrisc.elf: $(XLAT_DC) $(DCOBJ)/mach.o $(DCOBJ)/fdc.o $(DCOBJ)/main.o $(DCOBJ)/images.o
 	kos-cc -o $@ $^ -Wl,-Map,build/dreamrisc.map

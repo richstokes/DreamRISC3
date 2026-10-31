@@ -40,6 +40,19 @@ Net saving is ~0.9MB. Running `!Draw` and `!Paint` together will reload a unit e
 
 Machine state lives in r14 on SH-4 (`-ffixed-r14` is required, or GCC borrows the register) which saves ~0.5MB and gained ~14% idle throughput on the console.
 
+## Bundled apps
+
+Dropped ARM binaries still cannot run, so a bundled app is recompiled like the ROM. `apps/` has one folder per app and [apps/README.md](../apps/README.md) covers the manifest. There are two parts, and neither loads at boot:
+
+- Files: `tools/mkapps.py` appends a ResourceFS pack to `rom.bin`, mapped at `0x3C00000` through the cold page cache. A small `DreamApps` module, added to the ROM's module chain, registers it, so the app appears under `Apps` like any other. Every ResourceFS lookup walks every file header, so the pack keeps headers in its first page and files only cost a disc read when opened. Boot reads that one page
+- Code: each app is an overlay unit. It runs at its load address, which other tasks share, so a unit only starts from its entry point with the right instruction there, and entries from outside are checked against the instruction they were compiled from
+
+Decision: extend the Apps folder, not a new filing system. A virtual drive would need a FileSwitch filing system plus a Filer icon, and it would get us nothing until a game needs more than 2MB of files, the size of the pack window. Down the road a real drive is the way to go for that, and for the game's own save files.
+
+App units are small enough to spend code on speed. Each is one file at `-O2`, memory access and `LDM`/`STM` are inline, and returns go through a direct map. On the console that took Lander's heavy scene from 25 to ~48 frames/s, worst case 17 to 40, for 47KB to 93KB of unit, which only exists in memory while the app runs.
+
+Lander's physics run per frame, with only the vsync wait to limit them, so that speed made it far too fast. `code.frame_us` sets the app's vertical sync period, without touching OS timers. Lander uses 25Hz. An 8MHz ARM2 would manage ~15 frames/s going by ~150-290K ARM instructions a frame at ~4 MIPS, which is an estimate and not a measurement on real Acorn hardware, so it's probably still a bit quicker than the original. Open question: does it feel right on a pad?
+
 ## Storage
 
 `src/fdc.c` is a native driver behind the WD1772 registers, so RISC OS's own ADFS and FileCore run unchanged, including their FIQ byte transfers. The disc (`assets/adfs.adf.gz`) is an 800KB ADFS E image that RISC OS formatted itself on the harness via `tests/format.replay`. It loads into RAM at boot, so writes work but vanish at power off.
@@ -81,6 +94,12 @@ The Bad: boot 2 stuck at the 1bpp screen (`66733280`) for 90s+ with polls taking
 Not checked: actual speed under load (polls count branches and IO, so they are not a MIPS figure), physical input, and what the video output looks like on a screen.
 
 Heartbeat builds use `HW_LOG=1`, and `HW_REPLAY=1` adds a generated `build/replay.h` from `tools/replay2c.py`. Screen checksums are the only way to verify a console run unattended. If a boot is stuck in 1bpp at 30s the heartbeat dumps IOC state and recent SWIs.
+
+Lander on the console (10/31): 124-125 game frames per 5s for a whole scripted flight, ~60% of the CPU left over in the heaviest scene, launch with no visible stall over dcload. Before pacing, the profile put the heavy scene at ~22% vertex projection (software division), ~23% triangle setup and ~12% span fills.
+
+The video output was checked from a framebuffer dump in Flycast (`HW_DUMP=1` and `tools/fbdump.py`): full width, correct colours, matching the harness. It is still not a real TV. The dump also found a line that checksums cannot see, as they only cover guest memory: a line hash built on rotates cancelled on solid 256 pixel fills and left stale pixels.
+
+Console and harness checkpoints stop matching in Lander once it moves, because replays run on wall time and the frame the game has reached differs. Static scenes matched.
 
 ## Next Steps
 

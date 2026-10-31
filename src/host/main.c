@@ -76,12 +76,10 @@ static void write_shot(void)
 			if (a >= s->end)
 				a = s->base + (a - s->end);
 			u32 v = (s->ram[a] >> (bit & 7)) & ((1u << s->bpp) - 1);
-			u32 c = rgb(s->palette[v & 15]);
-			if (s->bpp == 8) {
-				c = (c & 0x77) | ((v & 0x10) ? 0x88 : 0);
-				c |= (rgb(s->palette[v & 15]) & 0x7700) | ((v & 0x20) ? 0x4400 : 0);
-				c |= (rgb(s->palette[v & 15]) & 0x770000) | ((v & 0x80) ? 0x880000 : 0);
-			}
+			u32 e = s->palette[v & 15];
+			if (s->bpp == 8)
+				e = (e & 0x737) | ((v & 0x10) >> 1) | ((v & 0x60) << 1) | ((v & 0x80) << 4);
+			u32 c = rgb(e);
 			int cx = x - s->cursor_x, cy = y - s->cursor_y;
 			if (cx >= 0 && cx < 32 && cy >= 0 && cy < s->cursor_h) {
 				u32 p = (s->ram[s->cursor_addr + (u32)cy * 8 + (u32)(cx >> 2)] >> ((cx & 3) * 2)) & 3;
@@ -209,9 +207,9 @@ void plat_poll_input(void)
 	mach_mouse(dx, dy, button_mask);
 }
 
-static u8 rom[0x200000];
-static u32 pages_touched[2];
-static u32 page_loads[64];
+static u8 rom[0x400000];
+static u32 pages_touched[4];
+static u32 page_loads[128];
 
 void plat_rom_read(u32 page, u8 *dest)
 {
@@ -259,7 +257,7 @@ const ov_header_t *plat_overlay_load(int unit)
 static u8 *read_file(const char *path, size_t want, u8 *dest)
 {
 	FILE *f = fopen(path, "rb");
-	if (!f || fread(dest, 1, want, f) != want) {
+	if (!f || (fread(dest, 1, want, f) != want && want != sizeof(rom))) {
 		fprintf(stderr, "cannot read %s\n", path);
 		exit(1);
 	}
@@ -270,16 +268,11 @@ static u8 *read_file(const char *path, size_t want, u8 *dest)
 int main(int argc, char **argv)
 {
 	static u8 cmos[256];
-	static const char *chips[4] = {"IC24.ROM", "IC25.ROM", "IC26.rom", "IC27.ROM"};
-	char path[1024];
 	if (argc < 4) {
-		fprintf(stderr, "usage: %s rom_dir cmos.bin seconds [shot.ppm]\n", argv[0]);
+		fprintf(stderr, "usage: %s rom.bin cmos.bin seconds [shot.ppm]\n", argv[0]);
 		return 2;
 	}
-	for (int i = 0; i < 4; i++) {
-		snprintf(path, sizeof(path), "%s/%s", argv[1], chips[i]);
-		read_file(path, 0x80000, rom + i * 0x80000);
-	}
+	read_file(argv[1], sizeof(rom), rom);
 	read_file(argv[2], 256, cmos);
 	stop_us = (uint64_t)(atof(argv[3]) * 1e6);
 	shot_path = argc > 4 ? argv[4] : NULL;
@@ -313,10 +306,11 @@ int main(int argc, char **argv)
 	}
 	disc_save();
 	fprintf(stderr, "overlay loads %u\n", mach_overlay_loads());
-	fprintf(stderr, "rom misses %u, pages touched %d\n", mach_rom_misses(),
-		__builtin_popcount(pages_touched[0]) + __builtin_popcount(pages_touched[1]));
+	fprintf(stderr, "rom misses %u, pages touched %d, pack pages touched %d\n", mach_rom_misses(),
+		__builtin_popcount(pages_touched[0]) + __builtin_popcount(pages_touched[1]),
+		__builtin_popcount(pages_touched[2]) + __builtin_popcount(pages_touched[3]));
 	fprintf(stderr, "page loads:");
-	for (int i = 0; i < 64; i++)
+	for (int i = 0; i < 72; i++)
 		fprintf(stderr, " %u", page_loads[i]);
 	fprintf(stderr, "\n");
 	fprintf(stderr, "screen sum %08X\n", mach_screen_sum(&last));

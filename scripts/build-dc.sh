@@ -1,5 +1,6 @@
 #!/bin/bash
 # Regenerate the recompiled ROM and build the Dreamcast ELF and CDI.
+# DC_MAKE_ARGS adds make variables, DC_CDI names the image.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
@@ -8,11 +9,12 @@ cd "$root"
 if [ -z "${MKDCDISC:-}" ]; then make mkdcdisc; MKDCDISC=build/mkdcdisc/mkdcdisc; fi
 set +u; source "${KOS_ENV:-$HOME/.local/share/dreamcast/kos/environ.sh}"; set -u
 [ "${1:-}" = --skip-gen ] || make gen
-make -j"$(getconf _NPROCESSORS_ONLN)" dc
+make -j"$(getconf _NPROCESSORS_ONLN)" dc ${DC_MAKE_ARGS:-}
 # Overlays run at a fixed address inside the ELF, so they link against it last.
 region=0x$(sh-elf-nm build/dreamrisc.elf | awk '$3 == "_overlay_region" {print $1}')
 bytes=$(grep -o 'OVERLAY_BYTES 0x[0-9a-f]*u' src/cpu.h | sed 's/.* //; s/u$//')
 rm -rf build/disc; mkdir -p build/disc
+shopt -s nullglob # app units are a single file
 cp build/rom.bin build/disc/rom.bin
 gunzip -c assets/adfs.adf.gz > build/disc/adfs.adf
 for table in build/dc/ov_*_table.o; do
@@ -27,5 +29,5 @@ done
 
 mkdir -p dist
 "$MKDCDISC" --allow-overwrite --disable-data-track-padding --main-elf build/dreamrisc.elf --directory-contents build/disc \
-  --title 'DreamRISC' --author 'richstokes' --bootstrap-mr-image assets/acorn-logo.png --output dist/DreamRISC.cdi
+  --title 'DreamRISC' --author 'richstokes' --bootstrap-mr-image assets/acorn-logo.png --output "${DC_CDI:-dist/DreamRISC.cdi}"
 sh-elf-size build/dreamrisc.elf

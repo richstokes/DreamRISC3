@@ -13,17 +13,21 @@ KOS_INIT_FLAGS(INIT_DEFAULT);
 
 extern const u8 cmos_image[];
 
-#define MAX_LINE_BYTES 640
-#define SHADOW_BYTES (640 * 480)
+#define MAX_LINES 512
 #define CURSOR_LINE_BYTES 8
 
-static u8 shadow[SHADOW_BYTES];
-static u8 wrapped[MAX_LINE_BYTES];
+/* Two framebuffers, flipped so a full-screen redraw never tears. line_sum records
+ * what each one shows, so a line is only drawn into a buffer that lacks it. */
+static u32 line_sum[2][MAX_LINES];
+static int back_fb;
+static uint16_t *fb_addr[2];
+static u32 wrapped[160];
 static uint16_t row[640] __attribute__((aligned(32)));
 static uint16_t lut[256];
+static u32 lut_pair[256];
 static u32 last_pal[20];
 static int last_w, last_h, last_bpp, frame_count;
-static int old_cursor_y, old_cursor_h;
+static u32 last_start;
 #ifdef HW_REPLAY
 static screen_t replay_screen;
 #endif
@@ -146,12 +150,21 @@ static void build_lut(const screen_t *s)
 		if (s->bpp == 8)
 			e = (e & 0x737) | ((i & 0x10) >> 1) | ((i & 0x60) << 1) | ((i & 0x80) << 4);
 		lut[i] = vidc_565(e);
+		lut_pair[i] = lut[i] * 0x10001u;
 	}
 }
 
-static void expand_line(const screen_t *s, const u8 *src, int width)
+/* Fills row at the output width. Low resolution modes have fewer pixels on the
+ * same scanline, so widen them. */
+static void expand_line(const screen_t *s, const u8 *src, int width, int scale)
 {
-	int x;
+	int x, i;
+	if (s->bpp == 8 && scale == 2) {
+		u32 *out = (u32 *)row;
+		for (x = 0; x < width; x++)
+			out[x] = lut_pair[src[x]];
+		return;
+	}
 	switch (s->bpp) {
 	case 4:
 		for (x = 0; x < width; x += 2) {
@@ -171,11 +184,15 @@ static void expand_line(const screen_t *s, const u8 *src, int width)
 		}
 		break;
 	}
+	if (scale > 1)
+		for (x = width - 1; x >= 0; x--)
+			for (i = scale - 1; i >= 0; i--)
+				row[x * scale + i] = row[x];
 }
 
-static void overlay_cursor(const screen_t *s, int y, int width)
+static void overlay_cursor(const screen_t *s, int y, int width, int scale)
 {
-	int line = y - s->cursor_y, x;
+	int line = y - s->cursor_y, x, i;
 	u32 addr;
 	if (line < 0 || line >= s->cursor_h)
 		return;
@@ -184,23 +201,48 @@ static void overlay_cursor(const screen_t *s, int y, int width)
 		u32 v = (s->ram[addr + (u32)(x >> 2)] >> ((x & 3) * 2)) & 3;
 		int px = s->cursor_x + x;
 		if (v && px >= 0 && px < width)
-			row[px] = vidc_565(s->cursor_palette[v - 1]);
+			for (i = 0; i < scale; i++)
+				row[px * scale + i] = vidc_565(s->cursor_palette[v - 1]);
 	}
 }
 
-/* Low resolution modes have fewer pixels on the same scanline, so widen them. */
-static inline void put_row(int y, int height, int width, int scale)
+/* Stands in for the line's contents; pointer position and shape are part of it. */
+static u32 sum_line(const screen_t *s, const u8 *src, u32 bytes, int y)
 {
-	int first = y * 480 / height, last = (y + 1) * 480 / height, d, x, i;
-	if (scale > 1)
-		for (x = width - 1; x >= 0; x--)
-			for (i = scale - 1; i >= 0; i--)
-				row[x * scale + i] = row[x];
-	for (d = first; d < last; d++)
-		sq_cpy(vram_s + d * 640, row, (size_t)(width * scale) * 2);
+	const u32 *p = (const u32 *)src, *end = (const u32 *)(src + (bytes & ~3u));
+	int line = y - s->cursor_y;
+	u32 sum = 0x811C9DC5u;
+	for (; p < end; p++)
+		sum = (sum << 5) + sum + *p; /* a plain rotate cancels out on solid fills */
+	if (line >= 0 && line < s->cursor_h) {
+		const u32 *c = (const u32 *)(s->ram + s->cursor_addr + (u32)line * CURSOR_LINE_BYTES);
+		sum ^= ((u32)s->cursor_x * 2654435761u) ^ c[0] ^ (c[1] << 7);
+	}
+	return sum;
 }
 
-/* Redraw only lines that changed, plus the lines under the pointer. */
+static inline void put_row(int y, int height, int pixels)
+{
+	int first = y * 480 / height, last = (y + 1) * 480 / height, d;
+	for (d = first; d < last; d++)
+		sq_cpy(vram_s + d * 640, row, (size_t)pixels * 2);
+}
+
+static void clear_buffers(void)
+{
+	vid_clear(0, 0, 0);
+	vid_flip(1 - back_fb);
+	vid_clear(0, 0, 0);
+	vid_flip(back_fb);
+	memset(line_sum, 0xA5, sizeof(line_sum));
+}
+
+#ifdef HW_LOG
+static uint64_t present_us;
+#endif
+
+/* Redraw only lines that changed. A screen bank flip always means a new picture,
+ * otherwise 25Hz is enough. */
 void plat_frame(const screen_t *s)
 {
 #ifdef HW_REPLAY
@@ -210,16 +252,34 @@ void plat_frame(const screen_t *s)
 	/* Hardware runs have no video capture: one line every 5s reports progress.
 	 * dcload printf runs with interrupts off, so never log more often. */
 	static uint64_t next_log;
-	static u32 log_frames, log_polls;
+	static u32 log_frames, log_polls, log_flips;
 	static int dumped;
 	uint64_t now = timer_us_gettime64();
 	log_frames++;
+	log_flips += s->start != last_start;
 	if (now >= next_log) {
 		u32 polls = mach_polls();
-		printf("hb t=%llu frames=%lu polls=%lu mode=%dx%dx%d sum=%08lX\n",
+		printf("hb t=%llu frames=%lu polls=%lu flips=%lu present=%lums mode=%dx%dx%d sum=%08lX\n",
 			(unsigned long long)(now / 1000000), (unsigned long)log_frames,
-			(unsigned long)(polls - log_polls), s->width, s->height, s->bpp,
+			(unsigned long)(polls - log_polls), (unsigned long)log_flips,
+			(unsigned long)(present_us / 1000), s->width, s->height, s->bpp,
 			(unsigned long)mach_screen_sum(s));
+		{
+			extern u32 mach_prof[66];
+			u32 app = 0;
+			int i;
+			for (i = 2; i < 66; i++)
+				app += mach_prof[i];
+			printf("prof rom=%lums ram=%lums app=%lums:", (unsigned long)(mach_prof[0] / 1000),
+				(unsigned long)(mach_prof[1] / 1000), (unsigned long)(app / 1000));
+			for (i = 2; i < 66; i++)
+				if (mach_prof[i] > app / 20)
+					printf(" %X=%lu", 0x8000 + (i - 2) * 256, (unsigned long)(mach_prof[i] / 1000));
+			printf("\n");
+			memset(mach_prof, 0, sizeof(mach_prof));
+		}
+		log_flips = 0;
+		present_us = 0;
 		{
 			extern u32 mach_pc_ring[256];
 			extern void mach_dump(void);
@@ -235,52 +295,56 @@ void plat_frame(const screen_t *s)
 		next_log = now + 5000000;
 	}
 #endif
-	u32 addr = s->start, line_bytes = (u32)(s->width * s->bpp / 8), seen = 0, n;
+	u32 addr = s->start, line_bytes = (u32)(s->width * s->bpp / 8), n;
 	int width = s->width > 640 ? 640 : s->width;
-	int height = s->height, scale, y, full;
-	if (++frame_count & 1)
+	int scale, height = s->height;
+	u32 *sums = line_sum[back_fb];
+	int y, drawn = 0;
+	if (++frame_count & 1 && s->start == last_start)
 		return;
+	last_start = s->start;
 	if (width <= 0 || height <= 0 || line_bytes == 0)
 		return;
 	scale = 640 / width;
 	n = (u32)(width * s->bpp / 8);
-	full = width != last_w || height != last_h || s->bpp != last_bpp ||
-	       memcmp(last_pal, s->palette, sizeof(last_pal));
-	if (full) {
+	if (width != last_w || height != last_h || s->bpp != last_bpp ||
+	    memcmp(last_pal, s->palette, sizeof(last_pal))) {
 		memcpy(last_pal, s->palette, sizeof(last_pal));
 		last_w = width;
 		last_h = height;
 		last_bpp = s->bpp;
 		build_lut(s);
-		vid_clear(0, 0, 0);
+		clear_buffers();
+		sums = line_sum[back_fb];
 	}
-	for (y = 0; y < height; y++) {
+	for (y = 0; y < height && y < MAX_LINES; y++) {
 		const u8 *src = s->ram + addr;
-		int cursor_now = y >= s->cursor_y && y < s->cursor_y + s->cursor_h;
-		int cursor_old = y >= old_cursor_y && y < old_cursor_y + old_cursor_h;
 		/* A hardware scrolled screen can wrap part way through a line */
 		if (addr < s->end && addr + n > s->end) {
 			u32 part = s->end - addr;
 			memcpy(wrapped, src, part);
-			memcpy(wrapped + part, s->ram + s->base, n - part);
-			src = wrapped;
+			memcpy((u8 *)wrapped + part, s->ram + s->base, n - part);
+			src = (const u8 *)wrapped;
 		}
-		/* Lines past the shadow have no copy to compare with, so always redraw */
-		int tracked = seen + n <= SHADOW_BYTES;
-		if (full || cursor_now || cursor_old || !tracked || memcmp(shadow + seen, src, n)) {
-			if (tracked)
-				memcpy(shadow + seen, src, n);
-			expand_line(s, src, width);
-			overlay_cursor(s, y, width);
-			put_row(y, height, width, scale);
+		u32 sum = sum_line(s, src, n, y);
+		if (sum != sums[y]) {
+			sums[y] = sum;
+			expand_line(s, src, width, scale);
+			overlay_cursor(s, y, width, scale);
+			put_row(y, height, width * scale);
+			drawn++;
 		}
-		seen += n;
 		addr += line_bytes;
 		if (addr >= s->end)
 			addr = s->base + (addr - s->end);
 	}
-	old_cursor_y = s->cursor_y;
-	old_cursor_h = s->cursor_h;
+	if (drawn) {
+		vid_flip(back_fb);
+		back_fb = 1 - back_fb;
+	}
+#ifdef HW_LOG
+	present_us += timer_us_gettime64() - now;
+#endif
 }
 
 /* USB HID code to Archimedes keyboard row and column; 0xFF is unmapped. */
@@ -345,6 +409,35 @@ typedef struct { u32 ms; char verb; int a, b; } replay_t;
 static u32 replay_pos;
 static int replay_dx, replay_dy, replay_buttons;
 
+/* Flycast only: serial at this rate would take minutes over dcload. The displayed
+ * buffer as hex, for tools/fbdump.py, so the output can be checked without a capture. */
+static void dump_screen(int id)
+{
+#ifdef HW_DUMP
+	const uint16_t *fb = fb_addr[1 - back_fb];
+	static char text[2600];
+	int x, y;
+	static const char hex[] = "0123456789abcdef";
+	if (id != 7)
+		return;
+	printf("fbdump %d\n", id);
+	for (y = 0; y < 480; y++) {
+		for (x = 0; x < 640; x++) {
+			uint16_t v = fb[y * 640 + x];
+			text[x * 4] = hex[v >> 12];
+			text[x * 4 + 1] = hex[(v >> 8) & 15];
+			text[x * 4 + 2] = hex[(v >> 4) & 15];
+			text[x * 4 + 3] = hex[v & 15];
+		}
+		text[2560] = '\n';
+		text[2561] = 0;
+		fputs(text, stdout);
+	}
+#else
+	(void)id;
+#endif
+}
+
 static void replay_step(int *dx, int *dy, int *buttons)
 {
 	u32 now = (u32)(timer_us_gettime64() / 1000);
@@ -359,6 +452,7 @@ static void replay_step(int *dx, int *dy, int *buttons)
 		} else {
 			printf("replay checkpoint %d sum=%08lX\n", e->a,
 				(unsigned long)mach_screen_sum(&replay_screen));
+			dump_screen(e->a);
 		}
 	}
 	*dx = replay_dx > 16 ? 16 : replay_dx < -16 ? -16 : replay_dx;
@@ -368,6 +462,8 @@ static void replay_step(int *dx, int *dy, int *buttons)
 	*buttons = replay_buttons;
 }
 #endif
+
+static u32 pad_keys;
 
 void plat_poll_input(void)
 {
@@ -400,6 +496,15 @@ void plat_poll_input(void)
 			if (c->buttons & CONT_X) buttons |= 4;
 		}
 	}
+	if (dev) {
+		cont_state_t *c = maple_dev_status(dev);
+		u32 now = c ? c->buttons & (CONT_START | CONT_Y) : 0;
+		if ((now ^ pad_keys) & CONT_START)
+			mach_key(0, 0, !!(now & CONT_START)); /* Escape */
+		if ((now ^ pad_keys) & CONT_Y)
+			mach_key(4, 7, !!(now & CONT_Y)); /* Return */
+		pad_keys = now;
+	}
 #ifdef HW_REPLAY
 	replay_step(&dx, &dy, &buttons);
 #endif
@@ -410,8 +515,14 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-	vid_set_mode(DM_640x480, PM_RGB565);
-	vid_clear(0, 0, 0);
+	vid_set_mode(DM_640x480 | DM_MULTIBUFFER, PM_RGB565);
+	vid_mode->fb_count = 2; /* KOS fills video RAM with them otherwise */
+	vid_flip(1);
+	fb_addr[0] = vram_s;
+	vid_flip(0);
+	fb_addr[1] = vram_s;
+	back_fb = 1;
+	clear_buffers();
 	mach_init(cmos_image);
 	mach_run(0);
 	return 0;

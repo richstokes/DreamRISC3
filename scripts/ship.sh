@@ -15,7 +15,7 @@ make -j16 host 2>&1 | { ! grep -E " error|Undefined"; }
 scripts/build-dc.sh --skip-gen > build/ship.log 2>&1 || { tail -5 build/ship.log; exit 1; }
 check() {
   gunzip -c assets/adfs.adf.gz > build/test.adf
-  got=$(env ${4:+DREAM_ADF=$4} DREAM_REPLAY=$1 ./build/dreamrisc-host "${ROM_DIR:-../arculator-mac/roms/riscos311}" assets/cmos.bin "$2" /dev/null 2>&1 | grep -oE 'sum=[0-9A-F]+' | tail -1)
+  got=$(env ${4:+DREAM_ADF=$4} DREAM_REPLAY=$1 ./build/dreamrisc-host build/rom.bin assets/cmos.bin "$2" /dev/null 2>&1 | grep -oE 'sum=[0-9A-F]+' | tail -1)
   [ "$got" = "sum=$3" ] || { echo "$1: expected $3, got $got" >&2; exit 1; }
   echo "ok $1"
 }

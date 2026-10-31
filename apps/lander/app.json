@@ -1,0 +1,22 @@
+{
+  "name": "!Lander",
+  "upstream": {
+    "base": "https://raw.githubusercontent.com/markmoxon/lander-source-code-acorn-archimedes/5cafd0e666b0b81735015b941ea1537186ed0b7f/",
+    "files": {
+      "GameCode.bin": {"path": "4-reference-binaries/GameCode.bin", "sha256": "3a70bfe1cf985b55eb1c3da406a8465f819ff817ed31b04214c186cc7d194487"},
+      "Sprites": {"path": "1-source-files/other-sources/riscos/!Sprites,ff9", "sha256": "42238902d6535e8508000c89ecac6d7d27c6c3877348d167acdb5a5b3d73ed16"}
+    }
+  },
+  "files": [
+    {"name": "!Run", "type": "feb", "local": "!Run"},
+    {"name": "!Help", "type": "fff", "local": "!Help"},
+    {"name": "!Sprites", "type": "ff9", "upstream": "Sprites"},
+    {"name": "!RunImage", "load": "0x8000", "exec": "0xA614", "upstream": "GameCode.bin"}
+  ],
+  "code": {
+    "file": "!RunImage",
+    "seeds": ["0xA614"],
+    "frame_us": 40000,
+    "tables": [["0x9C8C", 20], ["0xA480", 18]]
+  }
+}

@@ -209,6 +209,9 @@ static void update_irq(void)
  * code and is aliased at address 0. Slots are evicted by clock. */
 #define ROM_PAGES 64
 #define COLD_SLOTS 8
+/* Bundled app files follow the ROM in rom.bin and appear at 0x3C00000 */
+#define PACK_INDEX 0x780
+#define PACK_END 0x7C0
 /* Pages never touched in normal use. Everything else is hot, because the kernel
  * walks module headers and ResourceFS scans its files on every lookup. */
 static const u32 cold_pages[2] = {
@@ -219,17 +222,34 @@ static const u32 cold_pages[2] = {
 };
 #define ROM_IS_COLD(p) ((cold_pages[(p) >> 5] >> ((p) & 31)) & 1)
 static u8 *rom_cache;
-static signed char slot_page[COLD_SLOTS];
+static short slot_page[COLD_SLOTS];
 static int clock_hand, hot_count;
 static u32 rom_misses;
 
 static void rom_map(int page, u8 *mem)
 {
 	int i, p;
+	if (page >= ROM_PAGES) {
+		for (p = 0; p < 3; p++)
+			rtab[p][PACK_INDEX + page - ROM_PAGES] = mem;
+		return;
+	}
 	/* High ROM is mirrored every 2MB; writes there reach the CAM instead */
-	for (i = 0x700 + page; i < 0x800; i += ROM_PAGES)
+	for (i = 0x700 + page; i < 0x800; i += ROM_PAGES) {
+		if (i >= PACK_INDEX && i < PACK_END)
+			continue;
 		for (p = 0; p < 3; p++)
 			rtab[p][i] = mem;
+	}
+}
+
+/* Page for a missing high address, or -1 for the unused end of the pack */
+static int rom_page_at(u32 a)
+{
+	int index = PAGE_INDEX(a);
+	if (index < PACK_INDEX || index >= PACK_END)
+		return index & (ROM_PAGES - 1);
+	return (u32)(index - PACK_INDEX) < rom_ext_pages ? index - PACK_INDEX + ROM_PAGES : -1;
 }
 
 static void rom_page_in(int page)
@@ -240,7 +260,7 @@ static void rom_page_in(int page)
 	if (slot_page[slot] >= 0)
 		rom_map(slot_page[slot], 0);
 	plat_rom_read((u32)page, mem);
-	slot_page[slot] = (signed char)page;
+	slot_page[slot] = (short)page;
 	rom_map(page, mem);
 	rom_misses++;
 }
@@ -764,8 +784,11 @@ static u32 ld32_slow(u32 addr)
 	u32 v;
 	if (addr >> 26)
 		data_abort(addr);
-	if (top >= 0x380 && !C->rt[PAGE_INDEX(a)])
-		rom_page_in(PAGE_INDEX(a) & (ROM_PAGES - 1));
+	if (top >= 0x380 && !C->rt[PAGE_INDEX(a)]) {
+		if (rom_page_at(a) < 0)
+			return 0;
+		rom_page_in(rom_page_at(a));
+	}
 	page = C->rt[PAGE_INDEX(a)];
 	if (page) {
 		u32 s = (a & 3) * 8;
@@ -788,7 +811,9 @@ static u32 ld8_slow(u32 addr)
 	if (addr >> 26)
 		data_abort(addr);
 	if (top >= 0x380) {
-		rom_page_in(PAGE_INDEX(a) & (ROM_PAGES - 1));
+		if (rom_page_at(a) < 0)
+			return 0;
+		rom_page_in(rom_page_at(a));
 		return ld8(addr);
 	}
 	if (top >= 0x300 && top < 0x340)
@@ -924,6 +949,11 @@ void st8T(u32 a, u32 v, u32 pc) { int s = enter_user(pc); st8(a, v); leave_user(
 static int ov_unit = -1;
 static const ov_header_t *ov_header;
 static u32 ov_loads;
+static u8 app_running[8];
+/* Games tied to the display would run far too fast on this CPU, so while one has
+ * been seen in the last frame it gets its own vertical sync period. Timers and the
+ * OS clock are unaffected. */
+static u32 app_frame_us;
 
 static block_fn table_find(const block_t *table, u32 mask, u32 key);
 
@@ -932,19 +962,57 @@ u32 mach_overlay_loads(void)
 	return ov_loads;
 }
 
+static void overlay_use(int unit, u32 pc)
+{
+	if (ov_unit == unit)
+		return;
+	ov_unit = unit;
+	plat_log("overlay %d for pc=%07X\n", unit, pc);
+	ov_header = plat_overlay_load(unit);
+	ov_loads++;
+}
+
 static block_fn overlay_find(u32 key)
 {
 	u32 i;
 	for (i = 0; i < ov_range_count; i++) {
 		if (key < ov_ranges[i].start || key >= ov_ranges[i].end)
 			continue;
-		if (ov_unit != (int)ov_ranges[i].unit) {
-			ov_unit = (int)ov_ranges[i].unit;
-			plat_log("overlay %d for pc=%07X\n", ov_unit, key);
-			ov_header = plat_overlay_load(ov_unit);
-			ov_loads++;
-		}
+		overlay_use((int)ov_ranges[i].unit, key);
 		return table_find(ov_header->table, ov_header->mask, key);
+	}
+	return 0;
+}
+
+/* A task that may be the app starts it by jumping to the entry point. From then on
+ * its unit can come back at any address, as a ROM overlay may have replaced it. */
+static block_fn app_find(u32 pc, u32 word)
+{
+	u32 i;
+	for (i = 0; i < ov_app_count; i++) {
+		const ov_app_t *a = &ov_apps[i];
+		u32 mask, slot;
+		if (pc < a->start || pc >= a->end)
+			continue;
+		if (pc == a->entry && word == a->entry_word)
+			app_running[i] = 1;
+		if (!app_running[i])
+			continue;
+		overlay_use((int)a->unit, pc);
+		mask = ov_header->mask;
+		for (slot = ((pc >> 2) * 2654435761u) >> 8 & mask;; slot = (slot + 1) & mask) {
+			const block_t *b = &ov_header->table[slot];
+			if (!b->fn)
+				break;
+			if (b->key == pc) {
+				if (ov_header->guard[slot] == word) {
+					app_frame_us = a->frame_us;
+					return b->fn;
+				}
+				break;
+			}
+		}
+		app_running[i] = 0;
 	}
 	return 0;
 }
@@ -1017,6 +1085,9 @@ static block_fn find_block(u32 pc)
 			fn = overlay_find(key);
 	} else {
 		u32 word = fetch_word(pc);
+		fn = app_find(pc, word);
+		if (fn)
+			return fn;
 		if (!rtab[PRIV_SUPER][PAGE_INDEX(pc)]) {
 			mach_miss_pc = pc;
 			plat_fatal("jump to unmapped pc=%07X r14=%08X mode=%d\n", pc, R(14), C->psr & 3);
@@ -1106,7 +1177,8 @@ static void machine_tick(void)
 	for (n = 0; n < 4; n++)
 		step_timer(n, delta * 2);
 	if (now >= next_frame_us) {
-		next_frame_us = now + 20000;
+		next_frame_us = now + (app_frame_us ? app_frame_us : 20000);
+		app_frame_us = 0;
 		flyback_end_us = now + 2000;
 		flyback = 1;
 		ioc.irqa |= IRQA_VBLANK;
@@ -1140,8 +1212,31 @@ static void machine_tick(void)
 u32 mach_pc_ring[256];
 u32 mach_pc_pos;
 
+#ifdef HW_LOG
+/* Time between polls, charged to wherever the poll lands: ROM, other RAM, or a
+ * 256-byte bucket of the app. Good enough to rank routines on a real console. */
+u32 mach_prof[2 + 64];
+static uint64_t prof_last;
+
+static void prof_step(u32 pc)
+{
+	uint64_t now = plat_time_us();
+	u32 d = (u32)(now - prof_last), i = pc - ov_apps[0].start;
+	prof_last = now;
+	if (pc >= 0x3800000u)
+		mach_prof[0] += d;
+	else if (ov_app_count && pc >= ov_apps[0].start && i >> 8 < 64)
+		mach_prof[2 + (i >> 8)] += d;
+	else
+		mach_prof[1] += d;
+}
+#endif
+
 void mach_poll(u32 pc)
 {
+#ifdef HW_LOG
+	prof_step(pc);
+#endif
 	mach_pc_ring[mach_pc_pos++ & 255] = pc;
 	C->budget = POLL_BUDGET;
 	machine_tick();

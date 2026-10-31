@@ -1,0 +1,34 @@
+# Open Apps, launch !Lander, then fly: hold thrust, steer, fire.
+70 move -1000 1000
+74 move 55 -23
+76 button 1
+76.2 button 0
+84 move -1000 1000
+88 move 217 -265
+90 button 1
+90.1 button 0
+90.3 button 1
+90.4 button 0
+100 shot build/l1.ppm
+104 shot build/l2.ppm
+104.5 button 1
+106 shot build/l3.ppm
+108 move 40 -30
+108 shot build/l4.ppm
+110 button 3
+111 shot build/l5.ppm
+114 shot build/l6.ppm
+114.5 button 0
+120 shot build/l7.ppm
+# Past the checksum point: keep flying over the land for benchmarks.
+122 button 1
+125 move -30 20
+128 button 0
+129 button 1
+132 move 60 10
+135 button 0
+136 button 1
+140 move -40 -30
+144 button 0
+145 button 1
+150 button 0

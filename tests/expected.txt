@@ -1,4 +1,6 @@
-tests/apps.replay 136 9762A02A
-tests/overlays.replay 126 79A858DA
-tests/draw.replay 182 1FDE471C
+tests/apps.replay 136 43B3BA5E
+tests/overlays.replay 126 FF3FCA71
+tests/draw.replay 182 5835034F
 tests/adfs-open.replay 94 09D0981C build/test.adf
+tests/lander.replay 122 86C19FF6
+tests/lander-exit.replay 156 A313E947

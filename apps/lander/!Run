@@ -1,0 +1,5 @@
+| Lander runs as one task and takes over the machine until Escape.
+| The game pokes a fixed screen address, so the screen must be exactly 160K;
+| its first mode change grows the area to that size.
+WimpSlot -min 168K -max 168K
+Run <Obey$Dir>.!RunImage

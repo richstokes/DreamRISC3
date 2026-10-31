@@ -70,10 +70,16 @@ extern const u32 block_table_mask, ram_table_mask;
 #define OV_SECTION
 #endif
 #define OVERLAY_BYTES 0x110000u
-typedef struct { u32 magic; const block_t *table; u32 mask; } ov_header_t;
+typedef struct { u32 magic; const block_t *table; u32 mask; const u32 *guard; } ov_header_t;
 typedef struct { u32 start, end, unit; } ov_range_t;
 extern const ov_range_t ov_ranges[];
 extern const u32 ov_range_count, ov_units;
+
+/* Bundled apps. Each is an overlay unit, but its code runs at its load address in
+ * RAM, which other tasks share, so entry is by address and instruction word. */
+typedef struct { u32 start, end, entry, entry_word, unit, frame_us; } ov_app_t;
+extern const ov_app_t ov_apps[];
+extern const u32 ov_app_count, rom_ext_pages;
 
 void dispatch(u32 pc);
 void mach_poll(u32 pc);
