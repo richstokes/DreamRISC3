@@ -29,19 +29,14 @@ Each known instruction word gets one precompiled routine that takes its PC as an
 
 The disc holds `rom.bin` and `ov_N.bin`. Under dcload the console reads the same files over `/pc`.
 
-<<<<<<< HEAD
-- ROM data: hot pages load into RAM at boot; 12 cold pages stream through a 6-slot cache, using the page tables. Fewer are cold than you'd hope. The kernel walks module headers on every service call and ResourceFS scans Messages and ROMFonts, so only ~300KB can leave RAM
-- Code: blocks outside the boot trace in `!Draw`, `!Paint` and a misc group (printing, network, DOSFS) become overlay units linked to one fixed region. A dispatch miss loads the unit. Blocks keep no native stack, so swapping at any dispatch is safe. Boot never loads code from disc
-- SharedCLibrary, BASIC and FileCore stay resident on purpose, as every app uses them and paging them would mean a seek per task switch
-
-=======
 - ROM data: hot pages load into RAM at boot; 12 cold pages stream through an 8-slot cache, using the page tables. Fewer are cold than you'd hope. The kernel walks module headers on every service call and ResourceFS scans Messages and ROMFonts. Those cold pages also go hot once `!Draw` runs (28k disc reads with 3 slots, 21 with 8), so only ~130KB leaves RAM
 - Code: blocks outside the boot trace in `!Draw`, `!Paint` and a misc group (printing, network, DOSFS) become overlay units linked to one fixed region. A dispatch miss loads the unit. Blocks keep no native stack, so swapping at any dispatch is safe. Boot never loads code from disc
 - SharedCLibrary, BASIC and FileCore stay resident on purpose, as every app uses them and paging them would mean a seek per task switch
 
 Console check (10/31): the `tests/draw.replay` drawing session matched the harness at both checkpoints, with its two key events removed on both sides because hardware replays do not support keys yet.
 
->>>>>>> 2e3cca7 (Stream ROM pages and app code from disc)
+
+- ROM data: hot pages load into RAM at boot; 12 cold pages stream through a 6-slot cache, using the page tables. Fewer are cold than you'd hope. The kernel walks module headers on every service call and ResourceFS scans Messages and ROMFonts, so only ~300KB can leave RAM
 Net saving is ~0.9MB. Running `!Draw` and `!Paint` together will reload a unit each time focus moves between them, ~1s each: untested and it will be ugly.
 
 Open question: `USE_BASE_REG` puts machine state in r14 and saves ~0.6MB, but it breaks the POST with a bad abort on SH-4. dcload's syscalls also clobber r14, and `RESTORE_C()` handles that part. Cause of the abort unknown, so it's off.
