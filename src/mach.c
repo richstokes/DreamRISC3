@@ -1,5 +1,8 @@
 /* Native machine layer: processor state changes, page tables and the drivers
  * behind the register addresses used by the recompiled kernel. */
+#ifdef __sh__
+#include <malloc.h>
+#endif
 #include <setjmp.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,7 +26,6 @@
 cpu_t cpu_state;
 
 static u8 *ram;
-static const u8 *rom;
 static u8 *rtab[3][2048], *wtab[3][2048];
 static int priv, os_mode;
 static jmp_buf run_env;
@@ -49,6 +51,14 @@ static int flyback;
 static uint64_t next_input_us, next_sound_us;
 
 #define POLL_BUDGET 256
+
+/* C lives in r14 on SH-4, and dcload's syscalls do not preserve it, so re-establish
+ * it after anything that may reach dcload (file reads, console output). */
+#ifdef CPU_BASE_REG
+#define RESTORE_C() (C = &cpu_state)
+#else
+#define RESTORE_C() ((void)0)
+#endif
 
 static void update_tables(void)
 {
@@ -185,9 +195,12 @@ void undef_insn(u32 pc)
 	TAIL(dispatch(4));
 }
 
+static u32 abort_addr, abort_pc, abort_ret;
+
 static void data_abort(u32 addr)
 {
-	(void)addr;
+	abort_addr = addr;
+	abort_pc = C->cur;
 	take_exception(0x10, MODE_SVC, C->cur + 8, 0);
 	longjmp(run_env, 0x10 + 1);
 }
@@ -195,6 +208,79 @@ static void data_abort(u32 addr)
 static void update_irq(void)
 {
 	C->budget = 0;
+}
+
+/* --- demand-paged ROM ---
+ * ROM reads go through the page tables, so a page that is not cached simply
+ * misses into the slow path and loads. Page 0 stays pinned: it holds the reset
+ * code and is aliased at address 0. Slots are evicted by clock. */
+#define ROM_PAGES 64
+#define COLD_SLOTS 3
+/* Pages never touched in normal use. Everything else is hot, because the kernel
+ * walks module headers and ResourceFS scans its files on every lookup. */
+static const u32 cold_pages[2] = {
+	(1u << 20) | (1u << 30),
+	(1u << (48 - 32)) | (1u << (49 - 32)) | (1u << (50 - 32)) | (1u << (51 - 32)) |
+	(1u << (55 - 32)) | (1u << (56 - 32)) | (1u << (57 - 32)) | (1u << (58 - 32)) |
+	(1u << (60 - 32)) | (1u << (61 - 32)),
+};
+#define ROM_IS_COLD(p) ((cold_pages[(p) >> 5] >> ((p) & 31)) & 1)
+static u8 *rom_cache;
+static signed char slot_page[COLD_SLOTS];
+static int clock_hand, hot_count;
+static u32 rom_misses;
+
+static void rom_map(int page, u8 *mem)
+{
+	int i, p;
+	/* High ROM is mirrored every 2MB; writes there reach the CAM instead */
+	for (i = 0x700 + page; i < 0x800; i += ROM_PAGES)
+		for (p = 0; p < 3; p++)
+			rtab[p][i] = mem;
+}
+
+static void rom_page_in(int page)
+{
+	int slot = clock_hand;
+	u8 *mem = rom_cache + (size_t)(hot_count + slot) * PAGE_BYTES;
+	clock_hand = (clock_hand + 1) % COLD_SLOTS;
+	if (slot_page[slot] >= 0)
+		rom_map(slot_page[slot], 0);
+	plat_rom_read((u32)page, mem);
+	RESTORE_C();
+	slot_page[slot] = (signed char)page;
+	rom_map(page, mem);
+	rom_misses++;
+}
+
+static void rom_load_hot(void)
+{
+	int page, i;
+	for (page = 0; page < ROM_PAGES; page++)
+		hot_count += !ROM_IS_COLD(page);
+	/* 32-byte aligned so the disc driver can DMA straight into it */
+#ifdef __sh__
+	rom_cache = memalign(32, (size_t)(hot_count + COLD_SLOTS) * PAGE_BYTES);
+#else
+	rom_cache = malloc((size_t)(hot_count + COLD_SLOTS) * PAGE_BYTES);
+#endif
+	if (!rom_cache)
+		plat_fatal("cannot allocate ROM cache\n");
+	for (i = 0; i < COLD_SLOTS; i++)
+		slot_page[i] = -1;
+	for (page = 0, i = 0; page < ROM_PAGES; page++) {
+		if (!ROM_IS_COLD(page)) {
+			u8 *mem = rom_cache + (size_t)i++ * PAGE_BYTES;
+			plat_rom_read((u32)page, mem);
+			RESTORE_C();
+			rom_map(page, mem);
+		}
+	}
+}
+
+u32 mach_rom_misses(void)
+{
+	return rom_misses;
 }
 
 /* --- page tables --- */
@@ -232,9 +318,6 @@ static void reset_maps(void)
 		wtab[PRIV_SUPER][i] = rtab[PRIV_SUPER][i];
 	}
 	for (p = 0; p < 3; p++) {
-		for (i = 0x700; i < 0x800; i++) /* high ROM, mirrored every 2MB: read only here, writes hit the CAM */
-			rtab[p][i] = (u8 *)rom + (size_t)((i & 0x3F) * PAGE_BYTES);
-		rtab[p][0] = (u8 *)rom; /* ROM aliased at 0 until the kernel maps page zero */
 	}
 }
 
@@ -659,10 +742,13 @@ static void io_write(u32 a, u32 v)
 static u32 ld32_slow(u32 addr)
 {
 	u32 a = addr & 0x3FFFFFFu, top = a >> 16;
-	u8 *page = C->rt[PAGE_INDEX(a)];
+	u8 *page;
 	u32 v;
 	if (addr >> 26)
 		data_abort(addr);
+	if (top >= 0x380 && !C->rt[PAGE_INDEX(a)])
+		rom_page_in(PAGE_INDEX(a) & (ROM_PAGES - 1));
+	page = C->rt[PAGE_INDEX(a)];
 	if (page) {
 		u32 s = (a & 3) * 8;
 		v = *(u32 *)(page + (a & 0x7FFCu));
@@ -683,6 +769,10 @@ static u32 ld8_slow(u32 addr)
 	u32 a = addr & 0x3FFFFFFu, top = a >> 16;
 	if (addr >> 26)
 		data_abort(addr);
+	if (top >= 0x380) {
+		rom_page_in(PAGE_INDEX(a) & (ROM_PAGES - 1));
+		return ld8(addr);
+	}
 	if (top >= 0x300 && top < 0x340)
 		return io_read(a, 0) & 0xFF;
 	if (top >= 0x340 && top < 0x380)
@@ -730,6 +820,7 @@ u32 ld32(u32 a)
 	u8 *page = C->rt[PAGE_INDEX(a)];
 	if (LIKELY(page && !(a & 0xFC000003u)))
 		return *(u32 *)(page + (a & PAGE_OFFSET));
+	abort_ret = (u32)(uintptr_t)__builtin_return_address(0);
 	return ld32_slow(a);
 }
 
@@ -738,6 +829,7 @@ u32 ld8(u32 a)
 	u8 *page = C->rt[PAGE_INDEX(a)];
 	if (LIKELY(page && !(a & 0xFC000000u)))
 		return page[a & PAGE_OFFSET];
+	abort_ret = (u32)(uintptr_t)__builtin_return_address(0);
 	return ld8_slow(a);
 }
 
@@ -809,6 +901,36 @@ void st8T(u32 a, u32 v, u32 pc) { int s = enter_user(pc); st8(a, v); leave_user(
 
 /* --- control flow --- */
 
+static int ov_unit = -1;
+static const ov_header_t *ov_header;
+static u32 ov_loads;
+
+static block_fn table_find(const block_t *table, u32 mask, u32 key);
+
+u32 mach_overlay_loads(void)
+{
+	return ov_loads;
+}
+
+static block_fn overlay_find(u32 key)
+{
+	u32 i;
+	for (i = 0; i < ov_range_count; i++) {
+		if (key < ov_ranges[i].start || key >= ov_ranges[i].end)
+			continue;
+		if (ov_unit != (int)ov_ranges[i].unit) {
+			ov_unit = (int)ov_ranges[i].unit;
+			plat_log("overlay %d for pc=%07X\n", ov_unit, key);
+			RESTORE_C();
+			ov_header = plat_overlay_load(ov_unit);
+			RESTORE_C();
+			ov_loads++;
+		}
+		return table_find(ov_header->table, ov_header->mask, key);
+	}
+	return 0;
+}
+
 static u32 fetch_word(u32 pc);
 
 static void ram_branch(u32 pc)
@@ -834,6 +956,7 @@ u32 mach_peek(u32 addr);
 static void prefetch_abort(u32 pc)
 {
 	plat_log("no native code for pc=%07X word=%08X\n", pc, mach_peek(pc));
+	RESTORE_C();
 	if (pc < 0x20)
 		plat_fatal("no native code for exception vector %02X\n", pc);
 	take_exception(0x0C, MODE_SVC, pc + 4, 0);
@@ -871,7 +994,10 @@ static block_fn find_block(u32 pc)
 {
 	block_fn fn;
 	if (pc >= 0x3800000u) {
-		fn = table_find(block_table, block_table_mask, 0x3800000u | (pc & 0x1FFFFFu));
+		u32 key = 0x3800000u | (pc & 0x1FFFFFu);
+		fn = table_find(block_table, block_table_mask, key);
+		if (!fn)
+			fn = overlay_find(key);
 	} else {
 		u32 word = fetch_word(pc);
 		/* BASIC's SYS builds SWI instructions; the number is read by the handler */
@@ -930,6 +1056,7 @@ static void present(void)
 	s.cursor_y = vidc.cys - (vidc.vdstart - 1);
 	s.cursor_h = vidc.cye - vidc.cys;
 	plat_frame(&s);
+	RESTORE_C();
 }
 
 static void step_timer(int n, u32 ticks)
@@ -985,6 +1112,7 @@ static void machine_tick(void)
 	if (now >= next_input_us) {
 		next_input_us = now + 10000;
 		plat_poll_input();
+		RESTORE_C();
 		kb_poll();
 	}
 }
@@ -1010,7 +1138,11 @@ void mach_poll(u32 pc)
 void mach_dump(void)
 {
 	u32 i;
-	plat_log("undef at %07X\n", undef_pc);
+	plat_log("abort addr=%08X pc=%07X ret=%08X C=%p state=%p\n", abort_addr, abort_pc, abort_ret,
+		(void *)C, (void *)&cpu_state);
+	for (i = 0; i < 15; i++)
+		plat_log("r%u=%08X ", i, R(i));
+	plat_log("\n");
 	plat_log("jumps:");
 	for (i = jump_pos > 32 ? jump_pos - 32 : 0; i < jump_pos; i++)
 		plat_log(" %07X", jump_ring[i & 31]);
@@ -1042,9 +1174,12 @@ void mach_stop(void)
 	longjmp(run_env, 1);
 }
 
-void mach_init(const u8 *rom_image, const u8 *cmos_image)
+void mach_init(const u8 *cmos_image)
 {
-	rom = rom_image;
+	int i;
+#ifdef CPU_BASE_REG
+	C = &cpu_state;
+#endif
 	ram = malloc(RAM_SIZE);
 	if (!ram)
 		plat_fatal("cannot allocate RAM\n");
@@ -1052,6 +1187,9 @@ void mach_init(const u8 *rom_image, const u8 *cmos_image)
 	memcpy(cm.ram, cmos_image, 256);
 	cm.clock = cm.line = 1;
 	reset_maps();
+	rom_load_hot();
+	for (i = 0; i < 3; i++)
+		rtab[i][0] = rom_cache; /* ROM aliased at 0 until the kernel maps page zero */
 	memset(&cpu_state, 0, sizeof(cpu_state));
 	cpu_state.psr = PSR_I | PSR_F | MODE_SVC;
 	cpu_state.fz = 1;
@@ -1069,9 +1207,7 @@ void mach_init(const u8 *rom_image, const u8 *cmos_image)
 void mach_run(u32 start_pc)
 {
 	int code;
-#ifdef CPU_BASE_REG
-	C = &cpu_state;
-#endif
+	RESTORE_C();
 	code = setjmp(run_env);
 	if (code == 1)
 		return;

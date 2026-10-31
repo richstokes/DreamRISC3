@@ -2,6 +2,7 @@
  * natively recompiled RISC OS 3.11. */
 #include <kos.h>
 #include <dc/sq.h>
+#include <arch/cache.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -9,7 +10,7 @@
 
 KOS_INIT_FLAGS(INIT_DEFAULT);
 
-extern const u8 rom_image[], cmos_image[];
+extern const u8 cmos_image[];
 
 #define MAX_LINE_BYTES 160
 #define MAX_LINES 256
@@ -51,6 +52,60 @@ void plat_fatal(const char *fmt, ...)
 	bfont_draw_str(vram_s + 640 * 8 + 8, 640, 1, text);
 	for (;;)
 		thd_sleep(1000);
+}
+
+/* Files live on the disc. Under dcload the host serves them over /pc instead. */
+static file_t open_data(const char *name)
+{
+	char path[192];
+	file_t f;
+	snprintf(path, sizeof(path), "/cd/%s", name);
+	f = fs_open(path, O_RDONLY);
+	if (f == FILEHND_INVALID) {
+#ifndef PC_ROOT
+#define PC_ROOT ""
+#endif
+		snprintf(path, sizeof(path), "/pc%s/%s", PC_ROOT, name);
+		f = fs_open(path, O_RDONLY);
+	}
+	if (f == FILEHND_INVALID)
+		plat_fatal("cannot open %s\n", name);
+	return f;
+}
+
+static file_t rom_file = FILEHND_INVALID;
+
+void plat_rom_read(u32 page, u8 *dest)
+{
+	if (rom_file == FILEHND_INVALID)
+		rom_file = open_data("rom.bin");
+	/* The read may bypass the cache, so leave no stale lines behind it */
+	dcache_purge_range((uintptr_t)dest, 0x8000);
+	fs_seek(rom_file, (off_t)page * 0x8000, SEEK_SET);
+	if (fs_read(rom_file, dest, 0x8000) != 0x8000)
+		plat_fatal("short read of ROM page %lu\n", (unsigned long)page);
+}
+
+/* Filled from disc; each unit is linked to run at this address. */
+u8 overlay_region[OVERLAY_BYTES] __attribute__((aligned(32)));
+
+const ov_header_t *plat_overlay_load(int unit)
+{
+	char name[16];
+	const ov_header_t *h = (const ov_header_t *)overlay_region;
+	file_t f;
+	ssize_t got;
+	snprintf(name, sizeof(name), "ov_%d.bin", unit);
+	f = open_data(name);
+	/* The read may bypass the cache, so leave no stale lines behind it */
+	dcache_purge_range((uintptr_t)overlay_region, OVERLAY_BYTES);
+	got = fs_read(f, overlay_region, OVERLAY_BYTES);
+	fs_close(f);
+	if (got <= 0 || h->magic != OV_MAGIC)
+		plat_fatal("bad overlay %s\n", name);
+	dcache_flush_range((uintptr_t)overlay_region, (size_t)got);
+	icache_flush_range((uintptr_t)overlay_region, (size_t)got);
+	return h;
 }
 
 static inline uint16_t vidc_565(u32 e)
@@ -317,7 +372,7 @@ int main(int argc, char **argv)
 	(void)argv;
 	vid_set_mode(DM_640x480, PM_RGB565);
 	vid_clear(0, 0, 0);
-	mach_init(rom_image, cmos_image);
+	mach_init(cmos_image);
 	mach_run(0);
 	return 0;
 }

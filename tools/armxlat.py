@@ -14,6 +14,17 @@ import re
 from romscan import ENTRIES, ROM_BASE, SKIP_MODULES, find_chain, load_rom, module_info, sweep, walk, word
 
 MASK26 = 0x3FFFFFC
+# Code outside the boot trace in these modules lives on disc, one unit in memory at
+# a time. Apps used together must not share a unit with what they depend on, so
+# SharedCLibrary, BASIC and FileCore stay resident.
+OVERLAYS = {
+    "draw": {"!Draw"},
+    "paint": {"!Paint"},
+    "misc": {"PDriverDP", "PDumperSupport", "PDumperDM", "Printers", "NetFS",
+             "NetFiler", "NetPrint", "NetStatus", "NetUtils", "BroadcastLoader", "Econet",
+             "BBCEconet", "DOSFS", "Debugger", "Portable", "SerialDeviceDriver",
+             "SerialDeviceSupport", "ParallelDeviceDriver", "Podule"},
+}
 RAM_IMAGES = {"WaveSynth", "StringLib", "Percussion"}
 CHUNK = 3000
 COND = ["F_Z", "!F_Z", "F_C", "!F_C", "F_N", "!F_N", "F_V", "!F_V",
@@ -414,17 +425,18 @@ def collect(rom, traces, extra):
     modules = [module_info(rom, offset) for offset in find_chain(rom)]
     seeds = [0x1AC] + extra
     seeds += [seed for m in modules if m["title"] not in SKIP_MODULES for seed in m["seeds"]]
-    jumps, ram = set(), set()
+    jumps, ram, traced = set(), set(), set()
     for prefix in traces:
         hits = read_bitmap(prefix + ".bits")
         seeds += hits
+        traced |= set(hits)
         jumps |= set(read_bitmap(prefix + ".jump"))
         blob = Path(prefix + ".ram").read_bytes()
         for (key,) in struct.iter_unpack("<Q", blob):
             if key:
                 ram.add((key & 0xFFFFFFFE, key >> 32))
     code = sweep(rom, modules, walk(rom, seeds))
-    return code, jumps | set(extra), ram
+    return code, jumps | set(extra), ram, traced
 
 
 def leaders(rom, code, jumps):
@@ -560,20 +572,34 @@ def main():
             if line:
                 value = int(line, 16)
                 extra.append(value - ROM_BASE if value >= ROM_BASE else value)
-    code, jumps, ram = collect(rom, args.trace, extra)
+    code, jumps, ram, traced = collect(rom, args.trace, extra)
     lead = leaders(rom, code, jumps)
     kernel_end = find_chain(rom)[0]
-    known = {ROM_BASE + o for o in lead}
+    modules = [module_info(rom, offset) for offset in find_chain(rom)]
+    ranges = []
+    unit_of = {}
+    for index, (unit, names) in enumerate(OVERLAYS.items()):
+        for m in modules:
+            if m["title"] in names:
+                ranges.append((m["offset"], m["offset"] + m["length"], index))
+                for pc in range(m["offset"], m["offset"] + m["length"], 4):
+                    if pc in lead and pc not in traced:
+                        unit_of[pc] = index
+    resident = {ROM_BASE + o for o in lead if o not in unit_of}
+    unit_known = [resident | {ROM_BASE + o for o, u in unit_of.items() if u == i}
+                  for i in range(len(OVERLAYS))]
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    for stale in out.glob("xlat_*.c"):
+    for stale in list(out.glob("xlat_*.c")) + list(out.glob("ov_*.c")):
         stale.unlink()
 
     live_after = flag_liveness(rom, lead, code)
     funcs = []
     for start in sorted(lead):
         name = f"A_{ROM_BASE + start:07x}"
-        funcs.append((name, ROM_BASE + start, 0, block(rom, start, lead, code, known, kernel_end, live_after)))
+        unit = unit_of.get(start)
+        known = resident if unit is None else unit_known[unit]
+        funcs.append((name, ROM_BASE + start, unit, block(rom, start, lead, code, known, kernel_end, live_after)))
     words = {insn for _, insn in ram}
     if args.ram_words and Path(args.ram_words).exists():
         for line in Path(args.ram_words).read_text().split("\n"):
@@ -590,20 +616,25 @@ def main():
                     words.add(w)
     ram_funcs = [(f"R_{w:08x}", w) for w in sorted(words)]
     for name, w in ram_funcs:
-        funcs.append((name, 0, w, ram_block(w)))
+        funcs.append((name, 0, None, ram_block(w)))
 
-    for chunk in range(0, len(funcs), CHUNK):
-        group = funcs[chunk:chunk + CHUNK]
-        path = out / f"xlat_{chunk // CHUNK:03d}.c"
-        body = []
-        for name, _, _, src in group:
-            body.append(f"void {name}(u32 _u){{")
-            body.extend(src)
-            body.append("}")
-        text = re.sub(r"C->r\[(\d+)\]", lambda m: f"C->s[{slot(int(m.group(1)))}]", "\n".join(body))
-        refs = set(re.findall(r"\bA_[0-9a-f]{7}\b", text))
-        decls = "".join(f"void {r}(u32);\n" for r in sorted(refs))
-        path.write_text('#include "cpu.h"\n' + decls + text + "\n")
+    def write_chunks(group_funcs, stem):
+        for chunk in range(0, len(group_funcs), CHUNK):
+            group = group_funcs[chunk:chunk + CHUNK]
+            body = []
+            for name, _, _, src in group:
+                body.append(f"void {name}(u32 _u){{")
+                body.extend(src)
+                body.append("}")
+            text = re.sub(r"C->r\[(\d+)\]", lambda m: f"C->s[{slot(int(m.group(1)))}]", "\n".join(body))
+            refs = set(re.findall(r"\bA_[0-9a-f]{7}\b", text))
+            decls = "".join(f"void {r}(u32);\n" for r in sorted(refs))
+            (out / f"{stem}_{chunk // CHUNK:03d}.c").write_text('#include "cpu.h"\n' + decls + text + "\n")
+
+    residents = [f for f in funcs if f[2] is None]
+    write_chunks(residents, "xlat")
+    for index in range(len(OVERLAYS)):
+        write_chunks([f for f in funcs if f[2] == index], f"ov_{index}")
 
     def hash_table(entries, name):
         size = 1
@@ -620,13 +651,31 @@ def main():
         text.append("};\n")
         return text
 
-    rom_entries = [(pc, name) for name, pc, guard, _ in funcs if pc]
+    rom_entries = [(pc, name) for name, pc, unit, _ in residents if pc]
     lines = ['#include "cpu.h"\n']
-    lines += [f"void {name}(u32);\n" for name, _, _, _ in funcs]
+    lines += [f"void {name}(u32);\n" for name, _, _, _ in residents]
     lines += hash_table(rom_entries, "block_table")
     lines += hash_table([(w, name) for name, w in ram_funcs], "ram_table")
+    lines.append(f"const ov_range_t ov_ranges[{len(ranges)}]={{\n")
+    lines += [f"{{{ROM_BASE + a:#x}u,{ROM_BASE + b:#x}u,{u}}},\n" for a, b, u in ranges]
+    lines.append(f"}};\nconst u32 ov_range_count={len(ranges)}u;\nconst u32 ov_units={len(OVERLAYS)}u;\n")
+    for index in range(len(OVERLAYS)):
+        unit_funcs = [f for f in funcs if f[2] == index]
+        table = hash_table([(f[1], f[0]) for f in unit_funcs], f"ov_table_{index}")
+        mask = re.search(rf"ov_table_{index}_mask=(\d+)u", table[0]).group(1)
+        text = ['#include "cpu.h"\n'] + [f"void {f[0]}(u32);\n" for f in unit_funcs] + table
+        text.append(f"const ov_header_t ov_header_{index} OV_SECTION="
+                    f"{{OV_MAGIC,ov_table_{index},{mask}u}};\n")
+        (out / f"ov_{index}_table.c").write_text("".join(text))
+    index_text = ['#include "cpu.h"\n']
+    index_text += [f"extern const ov_header_t ov_header_{i};\n" for i in range(len(OVERLAYS))]
+    index_text.append("const ov_header_t *const ov_headers[]={")
+    index_text += [f"&ov_header_{i}," for i in range(len(OVERLAYS))]
+    index_text.append("};\n")
+    (out / "ov_index.c").write_text("".join(index_text))
     (out / "xlat_table.c").write_text("".join(lines))
     instructions = len(code) + len(words)
+    print(f"overlay blocks {len(unit_of)} of {len(lead)}")
     print(f"code {len(code)} insns, ram words {len(words)}, blocks {len(funcs)}, "
           f"chunks {len(funcs) // CHUNK + 1}, {instructions * 4} ARM bytes")
 

@@ -25,9 +25,21 @@ Each known instruction word gets one precompiled routine that takes its PC as an
 
 **This is the part closest to an emulator, so to be plain about it:** RAM code runs one routine per instruction through a table lookup, and those three routines do read the instruction word. Nothing is generated at runtime, and unknown words do not run. New ARM binaries cannot run; apps have to be part of the build, like Dream-TOS.
 
+## Disc streaming
+
+The disc holds `rom.bin` and `ov_N.bin`. Under dcload the console reads the same files over `/pc`.
+
+- ROM data: hot pages load into RAM at boot; 12 cold pages stream through a 6-slot cache, using the page tables. Fewer are cold than you'd hope. The kernel walks module headers on every service call and ResourceFS scans Messages and ROMFonts, so only ~300KB can leave RAM
+- Code: blocks outside the boot trace in `!Draw`, `!Paint` and a misc group (printing, network, DOSFS) become overlay units linked to one fixed region. A dispatch miss loads the unit. Blocks keep no native stack, so swapping at any dispatch is safe. Boot never loads code from disc
+- SharedCLibrary, BASIC and FileCore stay resident on purpose, as every app uses them and paging them would mean a seek per task switch
+
+Net saving is ~0.9MB. Running `!Draw` and `!Paint` together will reload a unit each time focus moves between them, ~1s each: untested and it will be ugly.
+
+Open question: `USE_BASE_REG` puts machine state in r14 and saves ~0.6MB, but it breaks the POST with a bad abort on SH-4. dcload's syscalls also clobber r14, and `RESTORE_C()` handles that part. Cause of the abort unknown, so it's off.
+
 ## Considerations
 
-- Size: ~1.2MB of ARM becomes ~8.5MB of SH-4 plus ~1MB of tables, so ~7x. Out-of-line memory helpers and whole-ROM flag liveness are already in
+- Size: ~1.2MB of ARM becomes ~8.5MB of SH-4 plus ~1MB of tables, so ~7x. Out-of-line memory helpers and whole-ROM flag liveness are already in, and the latter only saved ~1%
 - The old hardware registers are still the interface between ROM code and drivers. Replacing the kernel's drivers outright is a later step, not needed to reach the desktop
 - Open question: Flycast timing is not hardware timing, and interpreter-free does not automatically mean fast. Needs a real console run
 
@@ -54,6 +66,6 @@ Heartbeat builds use `HW_LOG=1`, and `HW_REPLAY=1` adds a generated `build/repla
 ## Next Steps
 
 1. Look at the real screen, try physical keyboard and mouse, and catch the boot hang if it recurs
-2. Stream from disc to free RAM: page ROM data on demand through the page tables, and consider building `!Draw`, `!Paint` as overlays loaded on a dispatch miss
+2. Find out why `USE_BASE_REG` breaks, as it should help speed too
 3. Storage: ADFS images from disc, then SD or VMU
 4. Sound through AICA, and a true 640x480 desktop mode

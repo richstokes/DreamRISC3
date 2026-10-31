@@ -159,6 +159,24 @@ void plat_poll_input(void)
 	mach_mouse(dx, dy, button_mask);
 }
 
+static u8 rom[0x200000];
+static u32 pages_touched[2];
+static u32 page_loads[64];
+
+void plat_rom_read(u32 page, u8 *dest)
+{
+	memcpy(dest, rom + page * 0x8000, 0x8000);
+	pages_touched[page >> 5] |= 1u << (page & 31);
+	page_loads[page]++;
+}
+
+const ov_header_t *plat_overlay_load(int unit)
+{
+	extern const ov_header_t *const ov_headers[];
+	fprintf(stderr, "overlay %d loaded at %.2fs\n", unit, virtual_us / 1e6);
+	return ov_headers[unit];
+}
+
 static u8 *read_file(const char *path, size_t want, u8 *dest)
 {
 	FILE *f = fopen(path, "rb");
@@ -172,7 +190,7 @@ static u8 *read_file(const char *path, size_t want, u8 *dest)
 
 int main(int argc, char **argv)
 {
-	static u8 rom[0x200000], cmos[256];
+	static u8 cmos[256];
 	static const char *chips[4] = {"IC24.ROM", "IC25.ROM", "IC26.rom", "IC27.ROM"};
 	char path[1024];
 	if (argc < 4) {
@@ -196,7 +214,7 @@ int main(int argc, char **argv)
 		replay = fopen(getenv("DREAM_REPLAY"), "r");
 		replay_read();
 	}
-	mach_init(rom, cmos);
+	mach_init(cmos);
 	mach_run(0);
 	{
 		extern u32 mach_pc_ring[256];
@@ -214,6 +232,13 @@ int main(int argc, char **argv)
 		for (u32 v = 0; v < 0x20; v += 4)
 			fprintf(stderr, "vector %02X %08X\n", v, mach_peek(v));
 	}
+	fprintf(stderr, "overlay loads %u\n", mach_overlay_loads());
+	fprintf(stderr, "rom misses %u, pages touched %d\n", mach_rom_misses(),
+		__builtin_popcount(pages_touched[0]) + __builtin_popcount(pages_touched[1]));
+	fprintf(stderr, "page loads:");
+	for (int i = 0; i < 64; i++)
+		fprintf(stderr, " %u", page_loads[i]);
+	fprintf(stderr, "\n");
 	fprintf(stderr, "screen sum %08X\n", mach_screen_sum(&last));
 	fprintf(stderr, "stopped at %.2fs virtual, %d frames, %dx%d %dbpp\n", virtual_us / 1e6,
 		frames, last.width, last.height, last.bpp);

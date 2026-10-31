@@ -1,0 +1,19 @@
+# Open Apps, then launch !Draw and !Paint, which live in overlays on disc.
+70 move -1000 1000
+74 move 55 -23
+76 button 1
+76.2 button 0
+84 move -1000 1000
+88 move 33 -265
+90 button 1
+90.1 button 0
+90.3 button 1
+90.4 button 0
+104 shot build/c1.ppm
+104.2 move -1000 1000
+108 move 217 -265
+110 button 1
+110.1 button 0
+110.3 button 1
+110.4 button 0
+124 shot build/c2.ppm

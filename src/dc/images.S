@@ -1,9 +1,6 @@
-! ROM and CMOS images. The ROM comes from the build machine and is never committed.
+! CMOS defaults. The ROM is read from the disc at boot and is never committed.
 	.section .rodata
-	.balign 32
-	.global _rom_image
-_rom_image:
-	.incbin "build/rom.bin"
+	.balign 4
 	.global _cmos_image
 _cmos_image:
 	.incbin "assets/cmos.bin"

@@ -36,7 +36,7 @@ typedef struct {
 #define SLOT(n) ((n) < 8 ? (n) : (n) < 12 ? (n) + 8 : (n) - 4)
 #define R(n) (C->s[SLOT(n)])
 
-#ifdef __SH4__
+#if defined(__sh__) && defined(USE_BASE_REG)
 register cpu_t *C asm("r14");
 #define CPU_BASE_REG 1
 #else
@@ -58,6 +58,20 @@ typedef void (*block_fn)(u32);
 typedef struct { u32 key; block_fn fn; } block_t;
 extern const block_t block_table[], ram_table[];
 extern const u32 block_table_mask, ram_table_mask;
+
+/* Code overlays: one unit from disc occupies the overlay region at a time. Nothing
+ * on the native stack refers to a block, so any dispatch can swap units. */
+#define OV_MAGIC 0x4F564C59u
+#ifdef __sh__
+#define OV_SECTION __attribute__((section(".ovhdr")))
+#else
+#define OV_SECTION
+#endif
+#define OVERLAY_BYTES 0x110000u
+typedef struct { u32 magic; const block_t *table; u32 mask; } ov_header_t;
+typedef struct { u32 start, end, unit; } ov_range_t;
+extern const ov_range_t ov_ranges[];
+extern const u32 ov_range_count, ov_units;
 
 void dispatch(u32 pc);
 void mach_poll(u32 pc);
@@ -110,7 +124,7 @@ static inline u32 shift_c(int kind, u32 v, u32 s, u32 *carry)
 }
 
 /* Native machine layer (mach.c) */
-void mach_init(const u8 *rom_image, const u8 *cmos_image);
+void mach_init(const u8 *cmos_image);
 void mach_run(u32 start_pc);
 void mach_stop(void);
 void mach_key(int row, int col, int down);
@@ -129,9 +143,13 @@ typedef struct {
 
 u32 mach_screen_sum(const screen_t *s);
 u32 mach_polls(void);
+u32 mach_rom_misses(void);
+u32 mach_overlay_loads(void);
 
 /* Provided by each platform */
 uint64_t plat_time_us(void);
+void plat_rom_read(u32 page, u8 *dest); /* one 32KB ROM page; may block on disc */
+const ov_header_t *plat_overlay_load(int unit); /* may block on disc */
 void plat_frame(const screen_t *screen);
 void plat_poll_input(void);
 void plat_log(const char *fmt, ...);

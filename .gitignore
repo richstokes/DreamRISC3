@@ -4,3 +4,4 @@ roms/
 *.rom
 *.ROM
 __pycache__/
+.DS_Store
