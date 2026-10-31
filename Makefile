@@ -35,7 +35,7 @@ build/dreamrisc-host: $(XLAT_HOST) $(HOSTOBJ)/mach.o $(HOSTOBJ)/main.o
 DCOBJ = build/dc
 XLAT_DC = $(patsubst $(GEN)/%.c,$(DCOBJ)/%.o,$(XLAT_SRC))
 OV_DC = $(patsubst $(GEN)/%.c,$(DCOBJ)/%.o,$(filter-out $(GEN)/ov_index.c,$(OV_SRC)))
-DCFLAGS = $(KOS_CFLAGS) -Os -fno-strict-aliasing -Wno-unused-value -Wno-unused-variable -Isrc
+DCFLAGS = $(KOS_CFLAGS) -ffixed-r14 -Os -fno-strict-aliasing -Wno-unused-value -Wno-unused-variable -Isrc
 
 build/rom.bin: $(ROM_DIR)/IC24.ROM
 	cat $(ROM_DIR)/IC24.ROM $(ROM_DIR)/IC25.ROM $(ROM_DIR)/IC26.rom $(ROM_DIR)/IC27.ROM > $@

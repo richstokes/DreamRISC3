@@ -52,13 +52,6 @@ static uint64_t next_input_us, next_sound_us;
 
 #define POLL_BUDGET 256
 
-/* C lives in r14 on SH-4, and dcload's syscalls do not preserve it, so re-establish
- * it after anything that may reach dcload (file reads, console output). */
-#ifdef CPU_BASE_REG
-#define RESTORE_C() (C = &cpu_state)
-#else
-#define RESTORE_C() ((void)0)
-#endif
 
 static void update_tables(void)
 {
@@ -247,7 +240,6 @@ static void rom_page_in(int page)
 	if (slot_page[slot] >= 0)
 		rom_map(slot_page[slot], 0);
 	plat_rom_read((u32)page, mem);
-	RESTORE_C();
 	slot_page[slot] = (signed char)page;
 	rom_map(page, mem);
 	rom_misses++;
@@ -272,7 +264,6 @@ static void rom_load_hot(void)
 		if (!ROM_IS_COLD(page)) {
 			u8 *mem = rom_cache + (size_t)i++ * PAGE_BYTES;
 			plat_rom_read((u32)page, mem);
-			RESTORE_C();
 			rom_map(page, mem);
 		}
 	}
@@ -785,6 +776,7 @@ static u32 ld8_slow(u32 addr)
 
 static void st32_slow(u32 addr, u32 v)
 {
+	abort_ret = (u32)(uintptr_t)__builtin_return_address(0);
 	u32 a = addr & 0x3FFFFFFu, top = a >> 16;
 	if (addr >> 26)
 		data_abort(addr);
@@ -805,6 +797,7 @@ static void st32_slow(u32 addr, u32 v)
 
 static void st8_slow(u32 addr, u32 v)
 {
+	abort_ret = (u32)(uintptr_t)__builtin_return_address(0);
 	u32 a = addr & 0x3FFFFFFu, top = a >> 16;
 	if (addr >> 26)
 		data_abort(addr);
@@ -921,9 +914,7 @@ static block_fn overlay_find(u32 key)
 		if (ov_unit != (int)ov_ranges[i].unit) {
 			ov_unit = (int)ov_ranges[i].unit;
 			plat_log("overlay %d for pc=%07X\n", ov_unit, key);
-			RESTORE_C();
 			ov_header = plat_overlay_load(ov_unit);
-			RESTORE_C();
 			ov_loads++;
 		}
 		return table_find(ov_header->table, ov_header->mask, key);
@@ -956,7 +947,6 @@ u32 mach_peek(u32 addr);
 static void prefetch_abort(u32 pc)
 {
 	plat_log("no native code for pc=%07X word=%08X\n", pc, mach_peek(pc));
-	RESTORE_C();
 	if (pc < 0x20)
 		plat_fatal("no native code for exception vector %02X\n", pc);
 	take_exception(0x0C, MODE_SVC, pc + 4, 0);
@@ -1056,7 +1046,6 @@ static void present(void)
 	s.cursor_y = vidc.cys - (vidc.vdstart - 1);
 	s.cursor_h = vidc.cye - vidc.cys;
 	plat_frame(&s);
-	RESTORE_C();
 }
 
 static void step_timer(int n, u32 ticks)
@@ -1112,7 +1101,6 @@ static void machine_tick(void)
 	if (now >= next_input_us) {
 		next_input_us = now + 10000;
 		plat_poll_input();
-		RESTORE_C();
 		kb_poll();
 	}
 }
@@ -1206,9 +1194,7 @@ void mach_init(const u8 *cmos_image)
 
 void mach_run(u32 start_pc)
 {
-	int code;
-	RESTORE_C();
-	code = setjmp(run_env);
+	int code = setjmp(run_env);
 	if (code == 1)
 		return;
 	dispatch(code ? (u32)code - 1 : start_pc);

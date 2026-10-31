@@ -36,7 +36,9 @@ typedef struct {
 #define SLOT(n) ((n) < 8 ? (n) : (n) < 12 ? (n) + 8 : (n) - 4)
 #define R(n) (C->s[SLOT(n)])
 
-#if defined(__sh__) && defined(USE_BASE_REG)
+/* Needs -ffixed-r14 everywhere: without it GCC still borrows r14 as a scratch
+ * register inside functions, and helpers called meanwhile see the wrong C. */
+#ifdef __sh__
 register cpu_t *C asm("r14");
 #define CPU_BASE_REG 1
 #else

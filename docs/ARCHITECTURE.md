@@ -38,7 +38,7 @@ Console check (10/31): the `tests/draw.replay` drawing session matched the harne
 
 Net saving is ~0.9MB. Running `!Draw` and `!Paint` together will reload a unit each time focus moves between them, ~1s each: untested and it will be ugly.
 
-Open question: `USE_BASE_REG` puts machine state in r14 and saves ~0.6MB, but it breaks the POST with a bad abort on SH-4. dcload's syscalls also clobber r14, and `RESTORE_C()` handles that part. Cause of the abort unknown, so it's off.
+Machine state lives in r14 on SH-4 (`-ffixed-r14` is required, or GCC borrows the register) which saves ~0.5MB and gained ~14% idle throughput on the console.
 
 ## Considerations
 
@@ -71,6 +71,5 @@ Heartbeat builds use `HW_LOG=1`, and `HW_REPLAY=1` adds a generated `build/repla
 ## Next Steps
 
 1. Look at the real screen, try physical keyboard and mouse, and catch the boot hang if it recurs
-2. Find out why `USE_BASE_REG` breaks, as it should help speed too
 3. Storage: ADFS images from disc, then SD or VMU
 4. Sound through AICA, and a true 640x480 desktop mode
