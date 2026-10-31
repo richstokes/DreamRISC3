@@ -1,0 +1,9 @@
+# Start !Ping and press Return to ping the harness's scripted gateway, leaving it
+# running long enough to fill part of the graph.
+70 key 0 12 1
+70.1 key 0 12 0
+73 type filer_run adfs::0.$.!Ping\n
+78 key 4 7 1
+78.1 key 4 7 0
+86 type \n
+100 shot build/ping1.ppm

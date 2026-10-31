@@ -181,6 +181,11 @@ void mach_irqb_clear(u32 bits);
 void mach_fiq(u32 bits);
 void mach_fiq_clear(u32 bits);
 
+/* DreamNet SWIs (net.c): a chunk from the range RISC OS leaves to users */
+#define NET_SWI_BASE 0xCDC00u
+#define NET_SWI_MASK 0x3Fu
+void net_swi(u32 op);
+
 /* Provided by each platform */
 uint64_t plat_time_us(void);
 void plat_rom_read(u32 page, u8 *dest); /* one 32KB ROM page; may block on disc */

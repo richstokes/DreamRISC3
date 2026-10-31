@@ -42,9 +42,21 @@ $(HOSTOBJ)/main.o: src/host/main.c src/cpu.h
 	@mkdir -p $(HOSTOBJ)
 	$(HOSTCC) $(HOSTFLAGS) -c $< -o $@
 
+$(HOSTOBJ)/net.o: src/net.c src/net.h src/cpu.h
+	@mkdir -p $(HOSTOBJ)
+	$(HOSTCC) $(HOSTFLAGS) -c $< -o $@
+
+$(HOSTOBJ)/net_sock.o: src/net_sock.c src/net.h
+	@mkdir -p $(HOSTOBJ)
+	$(HOSTCC) $(HOSTFLAGS) -c $< -o $@
+
+$(HOSTOBJ)/net_host.o: src/host/net.c src/net.h src/cpu.h
+	@mkdir -p $(HOSTOBJ)
+	$(HOSTCC) $(HOSTFLAGS) -c $< -o $@
+
 host: build/dreamrisc-host
 
-build/dreamrisc-host: $(XLAT_HOST) $(HOSTOBJ)/mach.o $(HOSTOBJ)/fdc.o $(HOSTOBJ)/ide.o $(HOSTOBJ)/hdformat.o $(HOSTOBJ)/main.o
+build/dreamrisc-host: $(XLAT_HOST) $(HOSTOBJ)/mach.o $(HOSTOBJ)/fdc.o $(HOSTOBJ)/ide.o $(HOSTOBJ)/hdformat.o $(HOSTOBJ)/main.o $(HOSTOBJ)/net.o $(HOSTOBJ)/net_sock.o $(HOSTOBJ)/net_host.o
 	$(HOSTCC) -o $@ $^
 
 # Dreamcast build; run through scripts/build-dc.sh, which sources the KOS environment.
@@ -77,14 +89,26 @@ $(DCOBJ)/main.o: src/dc/main.c src/cpu.h
 	@mkdir -p $(DCOBJ)
 	$(KOS_CC) $(DCFLAGS) $(if $(HW_AUTOFORMAT),-DHW_AUTOFORMAT) $(if $(HW_LOG),-DHW_LOG '-DPC_ROOT="$(CURDIR)/build/disc"') $(if $(HW_REPLAY),-DHW_REPLAY -Ibuild) $(if $(HW_DUMP),-DHW_DUMP) -c $< -o $@
 
+$(DCOBJ)/net.o: src/net.c src/net.h src/cpu.h
+	@mkdir -p $(DCOBJ)
+	$(KOS_CC) $(DCFLAGS) -c $< -o $@
+
+$(DCOBJ)/net_sock.o: src/net_sock.c src/net.h
+	@mkdir -p $(DCOBJ)
+	$(KOS_CC) $(DCFLAGS) -c $< -o $@
+
+$(DCOBJ)/net_dc.o: src/dc/net.c src/net.h
+	@mkdir -p $(DCOBJ)
+	$(KOS_CC) $(DCFLAGS) -I$(KOS_BASE)/addons/include -c $< -o $@
+
 $(DCOBJ)/images.o: src/dc/images.S assets/cmos.bin
 	@mkdir -p $(DCOBJ)
 	$(KOS_CC) -c $< -o $@
 
 dc: build/dreamrisc.elf $(OV_DC)
 
-build/dreamrisc.elf: $(XLAT_DC) $(DCOBJ)/mach.o $(DCOBJ)/fdc.o $(DCOBJ)/ide.o $(DCOBJ)/hdformat.o $(DCOBJ)/main.o $(DCOBJ)/images.o
-	kos-cc -o $@ $^ -Wl,-Map,build/dreamrisc.map
+build/dreamrisc.elf: $(XLAT_DC) $(DCOBJ)/mach.o $(DCOBJ)/fdc.o $(DCOBJ)/ide.o $(DCOBJ)/hdformat.o $(DCOBJ)/main.o $(DCOBJ)/images.o $(DCOBJ)/net.o $(DCOBJ)/net_sock.o $(DCOBJ)/net_dc.o
+	kos-cc -o $@ $^ -lppp -Wl,-Map,build/dreamrisc.map
 
 # Disc image tool, vendored under tools/mkdcdisc (see tools/mkdcdisc/VENDOR.md).
 # Built with the host compiler, so run this before sourcing the KOS environment.

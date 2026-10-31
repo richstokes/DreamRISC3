@@ -1,0 +1,3 @@
+Set NetSetup$Dir <Obey$Dir>
+WimpSlot -min 64K -max 64K
+Run <NetSetup$Dir>.!RunImage

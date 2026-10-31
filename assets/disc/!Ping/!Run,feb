@@ -1,0 +1,3 @@
+Set Ping$Dir <Obey$Dir>
+WimpSlot -min 64K -max 64K
+Run <Ping$Dir>.!RunImage

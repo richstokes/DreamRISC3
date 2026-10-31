@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "cpu.h"
+#include "net.h"
 
 #define RAM_SIZE (4u * 1024 * 1024)
 #define PAGE_COUNT 128
@@ -176,6 +177,15 @@ void swi_insn(u32 pc)
 		swi_ring[swi_pos & 63].r2 = R(2);
 		swi_ring[swi_pos & 63].mode = C->psr & 3;
 		swi_pos++;
+	}
+	if (page) {
+		u32 num = *(u32 *)(page + (pc & 0x7FFCu)) & 0xFDFFFFu; /* with or without X */
+		if ((num & ~NET_SWI_MASK) == NET_SWI_BASE) {
+			C->cur = pc;
+			net_swi(num & NET_SWI_MASK);
+			C->fv = 0;
+			TAIL(dispatch(pc + 4));
+		}
 	}
 	take_exception(8, MODE_SVC, pc + 4, 0);
 	TAIL(dispatch(8));
@@ -1408,6 +1418,7 @@ void mach_init(const u8 *cmos_image)
 	rom_load_hot();
 	fdc_init();
 	sound_init();
+	plat_net_init();
 	for (i = 0; i < 3; i++)
 		rtab[i][0] = rom_cache; /* ROM aliased at 0 until the kernel maps page zero */
 	memset(&cpu_state, 0, sizeof(cpu_state));
