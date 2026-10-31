@@ -21,9 +21,9 @@ A jump to code that was not recompiled stops the harness with its address. `tool
 
 RISC OS copies and generates a little code at runtime (the IRQ head, SWI stubs, sound voices, BASIC's `SYS`, SharedCLibrary branch tables).
 
-Each known instruction word gets one precompiled routine that takes its PC as an argument, looked up by word. SWI and branch words share a routine each, since those read the word for their number or offset.
+Each known instruction word gets one precompiled routine that takes its PC as an argument, looked up by word. SWI words, branch words and the `LDMIA r12!,{list}` that C apps build on the stack for SWI veneers share a routine each, since those read the word for their number, offset or register list.
 
-**This is the part closest to an emulator, so to be plain about it:** RAM code runs one routine per instruction through a table lookup, and those two routines do read the instruction word. Nothing is generated at runtime, and unknown words do not run. New ARM binaries cannot run; apps have to be part of the build, like Dream-TOS.
+**This is the part closest to an emulator, so to be plain about it:** RAM code runs one routine per instruction through a table lookup, and those three routines do read the instruction word. Nothing is generated at runtime, and unknown words do not run. New ARM binaries cannot run; apps have to be part of the build, like Dream-TOS.
 
 ## Considerations
 
@@ -54,6 +54,6 @@ Heartbeat builds use `HW_LOG=1`, and `HW_REPLAY=1` adds a generated `build/repla
 ## Next Steps
 
 1. Look at the real screen, try physical keyboard and mouse, and catch the boot hang if it recurs
-2. Stream from disc to free RAM: page ROM data on demand through the page tables, and build `!Draw`, `!Paint` as overlays loaded on a dispatch miss
+2. Stream from disc to free RAM: page ROM data on demand through the page tables, and consider building `!Draw`, `!Paint` as overlays loaded on a dispatch miss
 3. Storage: ADFS images from disc, then SD or VMU
 4. Sound through AICA, and a true 640x480 desktop mode

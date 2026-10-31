@@ -1,0 +1,73 @@
+# Launch !Draw, open a document, draw with the toolbox, then walk the menu.
+70 move -1000 1000
+74 move 55 -23
+76 button 1
+76.2 button 0
+84 move -1000 1000
+88 move 33 -265
+90 button 1
+90.1 button 0
+90.3 button 1
+90.4 button 0
+105 move -1000 1000
+106.5 move 355 -20
+108 button 1
+108.15 button 0
+120 move -1000 1000
+121.5 move 100 -260
+122 button 1
+122.15 button 0
+124 move -1000 1000
+125.5 move 200 -180
+126 button 1
+126.15 button 0
+128 move -1000 1000
+129.5 move 280 -260
+130 button 1
+130.15 button 0
+130.3 button 1
+130.45 button 0
+134 move -1000 1000
+135.5 move 21 -173
+136 button 1
+136.15 button 0
+138 move -1000 1000
+139.5 move 80 -220
+140 button 1
+140.15 button 0
+142 move -1000 1000
+143.5 move 173 -140
+144 button 1
+144.15 button 0
+146 move -1000 1000
+147.5 move 21 -193
+148 button 1
+148.15 button 0
+150 move -1000 1000
+151.5 move 80 -220
+152 button 1
+152.15 button 0
+154 move -1000 1000
+155.5 move 173 -140
+156 button 1
+156.15 button 0
+158 shot build/d2.ppm
+159 move -1000 1000
+160.5 move 21 -151
+161 button 1
+161.15 button 0
+163 move -1000 1000
+164.5 move 133 -167
+165 button 1
+165.15 button 0
+167 key 3 8 1
+167.2 key 3 8 0
+169 move -1000 1000
+170.5 move 21 -129
+171 button 1
+171.15 button 0
+173 move -1000 1000
+174.5 move 167 -207
+175 button 2
+175.15 button 0
+179 shot build/d3.ppm

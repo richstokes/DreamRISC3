@@ -821,6 +821,14 @@ static void ram_branch(u32 pc)
 	TAIL(dispatch(target));
 }
 
+/* Veneers built on the stack load their SWI arguments with LDMIA r12!,{list} */
+static void ram_ldm(u32 pc)
+{
+	C->cur = pc;
+	R(12) = ldm_regs(R(12) & ~3u, fetch_word(pc) & 0x3FFu);
+	TAIL(dispatch((pc + 4) & PC_MASK));
+}
+
 u32 mach_peek(u32 addr);
 
 static void prefetch_abort(u32 pc)
@@ -871,6 +879,8 @@ static block_fn find_block(u32 pc)
 			return swi_insn;
 		if ((word >> 25) == 0x75)
 			return ram_branch; /* SharedCLibrary builds tables of branches */
+		if ((word & 0xFFFFFC00u) == 0xE8BC0000u)
+			return ram_ldm;
 		fn = table_find(ram_table, ram_table_mask, word);
 	}
 #ifndef STOP_ON_MISS
