@@ -114,6 +114,44 @@ Unresolved: during bring-up the second boot looked freshly formatted, which sugg
 
 Not tested: the format prompt on a real controller or keyboard (hardware tests use `HW_AUTOFORMAT`), SD speed under load, and pulling the card out while running.
 
+## Network
+
+RISC OS 3.11 has no TCP/IP in ROM, and Acorn's Internet module was a disc-based ARM binary. So the stack is native (KOS) and the guest reaches it through DreamNet SWIs at `&CDC00`, a chunk from the range RISC OS leaves to users. `src/net.c` catches them in `swi_insn` before the kernel sees them. Results come back in r0 as a value or -errno, and there's no V-set error path, as nothing guest-side owns memory for an error block. We skipped Acorn's `Socket_*` numbers since no existing binary could call them anyway.
+
+| SWI | Name | Registers |
+|---|---|---|
+| +0 | Status | r0 -> 80 byte block: state, link, ip, mask, gateway, dns, mac, device, text |
+| +1 | Connect | r0 -> 80 byte config |
+| +2 | Disconnect | |
+| +3 | Ping | r0 = ip, r1 = seq |
+| +4 | PingResult | r0 = seq; out r0 = 1 if answered, r1 = us, r2 = ttl |
+| +5 | Resolve | r0 -> name |
+| +6 | ResolveResult | out r0 = 1 ok, 0 waiting, -1 failed; r1 = ip |
+| +7 | GetConfig | r0 -> 80 byte block |
+| +8 | SaveConfig | r0 -> config, written to a VMU |
+| +9 to +16 | SockOpen, Bind, Connect, Send, Recv, SendTo, RecvFrom, Close | non-blocking; -35 means try again |
+
+Addresses are one word, most significant byte first. Blocks are laid out in `src/net.h`.
+
+The abstraction is a table of links in `src/dc/net.c`. KOS's `netif_t` already hides the BBA, LAN Adapter and W5500, and PPP registers as a netif too, so a link only says how to bring itself up:
+
+- Auto tries BBA then LAN, with DHCP, from power on. No setup needed. `!Ping` defaults to the gateway it got
+- Modem dials, then runs PPP (`libppp`). A DreamPi is just a PPP peer, so `111-1111`, `dream`, `dreamcast` work OOTB. Never automatic, as it ties up a phone line. Pick it in `!NetSetup` and Save
+- W5500 has to be picked by name. Its probe flips SCIF into SPI, which would upset a serial console, and it refuses outright if an SD card holds the port. One serial port, so it's W5500 or SD hard disc, not both
+
+Things that bit us, for whoever touches this next:
+
+- Everything blocking runs on one worker thread, which must never touch `C`: r14 only holds machine state on the main thread. `src/net.h` stays free of `cpu.h` for that reason
+- `net_init` waits up to 10s for link, so it can't run at boot on the main thread. The exception is dcload-ip, where KOS has to take the BBA over before anything uses it. `arch_init_net_dcload_ip` then carries dcload's traffic, and `/pc` keeps working
+- KOS's dialler stops at any character with no tone, so dashes are stripped
+- BASIC 1.05 only tokenises text from `*BASIC -load`, and prints "Program renumbered" over the desktop while it does. `tools/basic.py` tokenises at build time. Its output matched BASIC's own `SAVE` byte for byte on both apps
+
+The harness has a scripted link in virtual time (`src/host/net.c`), so replays checksum the apps. Sockets are shared code in `src/net_sock.c`.
+
+Memory: ~100KB of code, and ~120KB of heap once the BBA is up, leaving ~900KB free.
+
+Flycast (10/31): `!Ping` launched by replay and ran through the real KOS driver against the emulated BBA (DHCP, ICMP replies at 2-22ms) and emulated modem (PPP at 33600, replies at 60-80ms).
+
 ## Considerations
 
 - Size: ~1.2MB of ARM becomes ~8.5MB of SH-4 plus ~1MB of tables, so ~7x. Out-of-line memory helpers and whole-ROM flag liveness are already in, and the latter only saved ~1%
@@ -153,3 +191,4 @@ Console and harness checkpoints stop matching in Lander once it moves, because r
 1. Look at the real screen, try physical keyboard and mouse, and catch the boot hang if it recurs
 2. Use more of the card: FileCore in 3.11 tops out near 512MB per disc, so maybe several drives
 3. Listen to the sound on a console, and check mode 27 on a TV as well as VGA
+4. Network: dial a real DreamPi, try a real W5500, and exercise the socket SWIs from a BASIC program

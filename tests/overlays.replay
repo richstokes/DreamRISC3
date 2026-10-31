@@ -10,10 +10,10 @@
 90.3 button 1
 90.4 button 0
 104 shot build/c1.ppm
-104.2 move -1000 1000
-108 move 33 -205
-110 button 1
-110.1 button 0
-110.3 button 1
-110.4 button 0
+# By name rather than by icon, as the Apps window shifts whenever an app is added
+105 key 0 12 1
+105.1 key 0 12 0
+108 type filer_run resources:$.apps.!paint\n
+113 key 4 7 1
+113.1 key 4 7 0
 124 shot build/c2.ppm
