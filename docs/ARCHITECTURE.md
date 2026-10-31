@@ -108,6 +108,8 @@ Things that bit us:
 
 Console results (10/31): real card formatted, written, power cycled and read back, with `Work` still there and every checkpoint matching the harness. Boot block detection was stable over 4 more power cycles.
 
+On the final merged build (sound, 640x480) the card test passed by eye from a console screen dump: `Work` persisted, spool wrote, `Verified OK`. Its checksum differed from the harness only because one scripted space was dropped (`*cdiradfs::4...`). That may be a real keyboard timing issue while the disc is busy, so check it if typing ever loses characters.
+
 Unresolved: during bring-up the second boot looked freshly formatted, which suggests the first check said "not formatted" on a card that had just been formatted. That build could format unattended. I never found out why and it has not recurred, but treat it as open while the card holds anything you care about.
 
 Not tested: the format prompt on a real controller or keyboard (hardware tests use `HW_AUTOFORMAT`), SD speed under load, and pulling the card out while running.
