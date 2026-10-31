@@ -2,6 +2,7 @@ REM NetSetup: choose how the Dreamcast reaches the network
 REM Auto tries the Broadband then LAN Adapter with DHCP, which needs no setup.
 REM The W5500 is never probed unless it is picked here, and the modem has to be
 REM picked too as it ties up a phone line. Save keeps the choice on a VMU.
+REM TCP/IP is native and runs without this, the icon is just for status.
 DIM b% 2048, cfg% 80, stat% 80, ibuf% 40
 DIM ipt% 20, mask% 20, gwt% 20, dnst% 20, phone% 24, user% 16, pass% 16, msg% 80, addr% 80
 DIM rv% 32, radio% 32
@@ -12,6 +13,7 @@ SYS "Wimp_Initialise",200,&4B534154,"NetSetup" TO ,task%
 SYS swi%+7,cfg%
 PROCfields
 PROCwindow
+PROCiconbar("!netsetup")
 PROCopen
 PROCshow
 REPEAT
@@ -21,9 +23,10 @@ REPEAT
     WHEN 0: PROCshow
     WHEN 1: PROCredraw
     WHEN 2: SYS "Wimp_OpenWindow",,b%
-    WHEN 3: quit%=TRUE
-    WHEN 6: PROCclick(b%!16)
+    WHEN 3: SYS "Wimp_CloseWindow",,b%
+    WHEN 6: IF b%!12=-2 THEN PROCbarclick ELSE PROCclick(b%!16)
     WHEN 8: SYS "Wimp_ProcessKey",b%!24
+    WHEN 9: quit%=TRUE
     WHEN 17,18: IF b%!16=0 THEN quit%=TRUE
   ENDCASE
 UNTIL quit%
@@ -90,6 +93,26 @@ PROCicon(16,-552,800,-508,&17000131,addr%,-1,80)
 stat1%=i%+3: stat2%=i%+4
 b%!84=i%+5
 SYS "Wimp_CreateWindow",,b% TO win%
+ENDPROC
+
+
+DEF PROCiconbar(sprite$)
+DIM menu% 64
+b%!0=-1: b%!4=0: b%!8=0: b%!12=68: b%!16=68: b%!20=&3002
+$(b%+24)=sprite$
+SYS "Wimp_CreateIcon",,b%
+$menu%="NetSetup": menu%?12=7: menu%?13=2: menu%?14=7: menu%?15=0
+menu%!16=112: menu%!20=44: menu%!24=0
+menu%!28=&80: menu%!32=-1: menu%!36=&07000021
+$(menu%+40)="Quit"
+ENDPROC
+
+DEF PROCbarclick
+IF b%!8=2 THEN
+  SYS "Wimp_CreateMenu",,menu%,b%!0-56,140
+ELSE
+  PROCopen
+ENDIF
 ENDPROC
 
 DEF PROCopen

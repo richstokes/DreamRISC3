@@ -31,6 +31,7 @@ typedef struct {
 #define NET_SEQS 16 /* ping replies remembered, by sequence number */
 
 void plat_net_init(void);
+void plat_sock_tune(int fd); /* a new TCP socket, before it connects */
 void plat_net_status(net_status_t *status);
 void plat_net_get_config(net_config_t *config);
 int plat_net_save_config(const net_config_t *config); /* 0 once it will survive power off */

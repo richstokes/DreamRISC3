@@ -25,6 +25,7 @@
 #define TRY_AGAIN 35
 #define ERR_INPROGRESS 36
 #define ERR_ALREADY 37
+#define ERR_NOBUFS 55
 #define ERR_ISCONN 56
 #define ERR_NOTCONN 57
 #define NO_LINK 0xFFFF
@@ -639,7 +640,7 @@ static int conn_open(conn_t *c, const url_t *u)
 		if (rv == 0 || rv == -ERR_ISCONN)
 			break;
 		if (rv != -ERR_INPROGRESS && rv != -ERR_ALREADY && rv != -TRY_AGAIN) {
-			set_message("Could not connect");
+			set_message(rv == -ERR_NOBUFS ? "Not enough memory to connect" : "Could not connect");
 			net_sock_close(c->fd);
 			return 0;
 		}

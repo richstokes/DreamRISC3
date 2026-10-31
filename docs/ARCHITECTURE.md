@@ -179,12 +179,15 @@ The harness has no TLS, but its sockets are real: `tests/webserver.py` serves a 
 Things that bit us:
 
 - KOS `malloc` isn't zeroed where the Mac's fresh memory happened to be. A missing `line_at[0] = 0` hung the console and not the harness
+- KOS gives every TCP socket 64KB each way, ~130KB a connection, which failed with `ENOBUFS` without an SD card. `SO_RCVBUF` before connecting leaks, as `connect()` overwrites the pointer, so `--wrap=realloc` hands KOS a placeholder for that one call (`plat_sock_tune`). Sockets are now 16KB in and 4KB out
 - newlib's errno values aren't BSD's, so `net_sock.c` maps the ones that drive control flow
 - In BASIC an uppercase name starting with a keyword tokenises as that keyword, so `LINEH` is `LINE H`
 
-Console (10/31), real BBA under dcload, with the fetch started natively: info.cern.ch, and over HTTPS example.com, text.npr.org and en.wikipedia.org (cut at 96KB, 352 lines), with the desktop running throughout. Flycast fetched `about:home`, but crashed in its own process on a real connection, so it can't test this.
+Console (10/31), real BBA under dcload, with the fetch started natively: info.cern.ch, and over HTTPS example.com, text.npr.org and en.wikipedia.org (cut at 96KB, 352 lines), with the desktop running throughout. Without an SD card, Flycast fetched https://dcvmu.com/ (270 lines). One earlier Flycast run died in its own process during a fetch, which hasn't happened since.
 
 Open question: this is the same launch problem as `!Ping`. Under dcload a scripted launch of `!Web` didn't come up in 2 of 2 runs (`Filer_Run` and `WimpTask` alike), so the app and the fetch have not yet run together on a console. Needs a run from GDEMU with no dcload.
+
+`!Web` and `!NetSetup` sit on the icon bar: closing a window leaves them running, and the icon menu quits. `!NetSetup` doesn't need to stay running for anything, as TCP/IP is native and up from power on. The icon is only there for status.
 
 ## Considerations
 

@@ -15,6 +15,7 @@
 #define GUEST_EALREADY 37
 #define GUEST_EISCONN 56
 #define GUEST_ENOTCONN 57
+#define GUEST_ENOBUFS 55
 
 static int fail(void)
 {
@@ -28,6 +29,8 @@ static int fail(void)
 		return -GUEST_EISCONN;
 	if (errno == ENOTCONN)
 		return -GUEST_ENOTCONN;
+	if (errno == ENOBUFS || errno == ENOMEM)
+		return -GUEST_ENOBUFS;
 	return -errno;
 }
 
@@ -50,6 +53,8 @@ int net_sock_open(int kind)
 	int fd = socket(AF_INET, kind == SOCK_KIND_UDP ? SOCK_DGRAM : SOCK_STREAM, 0);
 	if (fd < 0)
 		return fail();
+	if (kind == SOCK_KIND_TCP)
+		plat_sock_tune(fd);
 	if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0) {
 		int code = fail();
 		close(fd);

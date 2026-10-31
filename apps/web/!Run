@@ -1,3 +1,4 @@
+IconSprites <Obey$Dir>.!Sprites
 Set Web$Dir <Obey$Dir>
 WimpSlot -min 96K -max 96K
 Run <Web$Dir>.!RunImage

@@ -120,7 +120,7 @@ $(DCOBJ)/images.o: src/dc/images.S assets/cmos.bin
 dc: build/dreamrisc.elf $(OV_DC)
 
 build/dreamrisc.elf: $(XLAT_DC) $(DCOBJ)/mach.o $(DCOBJ)/fdc.o $(DCOBJ)/ide.o $(DCOBJ)/hdformat.o $(DCOBJ)/main.o $(DCOBJ)/images.o $(DCOBJ)/net.o $(DCOBJ)/net_sock.o $(DCOBJ)/net_dc.o $(DCOBJ)/web.o $(DCOBJ)/tls.o
-	kos-cc -o $@ $^ -lppp -lmbedtls -lmbedx509 -lmbedcrypto -Wl,-Map,build/dreamrisc.map
+	kos-cc -o $@ $^ -lppp -lmbedtls -lmbedx509 -lmbedcrypto -Wl,--wrap=realloc -Wl,-Map,build/dreamrisc.map
 
 # Disc image tool, vendored under tools/mkdcdisc (see tools/mkdcdisc/VENDOR.md).
 # Built with the host compiler, so run this before sourcing the KOS environment.

@@ -42,6 +42,11 @@ void plat_net_init(void)
 	up_at = UP_DELAY_US;
 }
 
+void plat_sock_tune(int fd)
+{
+	(void)fd;
+}
+
 void plat_net_status(net_status_t *s)
 {
 	static const uint8_t ip[4] = {192, 168, 1, 50}, mask[4] = {255, 255, 255, 0},

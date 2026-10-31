@@ -12,8 +12,8 @@ $stat%=""
 $title%="Web"
 SYS "Wimp_Initialise",200,&4B534154,"Web" TO ,task%
 PROCwindows
+PROCiconbar("!web")
 PROCopen
-SYS "Wimp_SetCaretPosition",bar%,1,0,0,-1,LEN($u%)
 SYS swi%+17,u%
 REPEAT
   SYS "OS_ReadMonotonicTime" TO now%
@@ -22,9 +22,10 @@ REPEAT
     WHEN 0: PROCtick
     WHEN 1: PROCredraw
     WHEN 2: PROCreopen
-    WHEN 3: quit%=TRUE
-    WHEN 6: PROCclick
+    WHEN 3: PROChide
+    WHEN 6: IF b%!12=-2 THEN PROCbarclick ELSE PROCclick
     WHEN 8: IF b%!24=13 THEN SYS swi%+17,u% ELSE SYS "Wimp_ProcessKey",b%!24
+    WHEN 9: quit%=TRUE
     WHEN 17,18: IF b%!16=0 THEN quit%=TRUE
   ENDCASE
 UNTIL quit%
@@ -42,6 +43,34 @@ LOCAL t%
 DIM t% LEN(a$)+1
 $t%=a$
 =t%
+
+
+DEF PROCiconbar(sprite$)
+DIM menu% 64
+b%!0=-1: b%!4=0: b%!8=0: b%!12=68: b%!16=68: b%!20=&3002
+$(b%+24)=sprite$
+SYS "Wimp_CreateIcon",,b%
+$menu%="Web": menu%?12=7: menu%?13=2: menu%?14=7: menu%?15=0
+menu%!16=112: menu%!20=44: menu%!24=0
+menu%!28=&80: menu%!32=-1: menu%!36=&07000021
+$(menu%+40)="Quit"
+ENDPROC
+
+DEF PROCbarclick
+IF b%!8=2 THEN
+  SYS "Wimp_CreateMenu",,menu%,b%!0-56,140
+ELSE
+  PROCopen
+ENDIF
+ENDPROC
+
+REM Closing a window leaves the app on the icon bar
+DEF PROChide
+!ibuf%=bar%
+SYS "Wimp_CloseWindow",,ibuf%
+!ibuf%=page%
+SYS "Wimp_CloseWindow",,ibuf%
+ENDPROC
 
 DEF PROCcolours
 b%?32=7: b%?33=2: b%?34=7: b%?35=0: b%?36=3: b%?37=1: b%?38=12: b%?39=0
@@ -81,6 +110,7 @@ b%!0=page%
 SYS "Wimp_GetWindowState",,b%
 b%!28=-1
 PROCreopen
+SYS "Wimp_SetCaretPosition",bar%,2,0,0,-1,LEN(FNstr(u%))
 ENDPROC
 
 REM Opens the page as asked, with the toolbar on top of it, aligned to its top edge

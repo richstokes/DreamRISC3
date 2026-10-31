@@ -14,6 +14,7 @@
 #include <netdb.h>
 #include <ppp/ppp.h>
 #include <stdio.h>
+#include <sys/socket.h>
 #include <unistd.h>
 #include <string.h>
 #include "../net.h"
@@ -353,6 +354,34 @@ void plat_net_init(void)
 	attr.stack_size = WORKER_STACK;
 	attr.label = "dreamnet";
 	thd_create_ex(&attr, worker, NULL);
+}
+
+/* KOS gives each TCP socket 64KB each way, which is more than the heap can spare
+ * without an SD card. Asking for less before connecting works, except that it
+ * allocates a buffer connect() then overwrites, leaking it. So for just that call
+ * realloc hands back a placeholder: KOS keeps the size and never frees the pointer
+ * for a socket that didn't connect. Link with --wrap=realloc. */
+#define SOCK_RCVBUF (16 * 1024)
+#define SOCK_SNDBUF (4 * 1024)
+
+extern void *__real_realloc(void *ptr, size_t size);
+static kthread_t *tuning;
+
+void *__wrap_realloc(void *ptr, size_t size)
+{
+	static uint8_t placeholder[4];
+	if (tuning && tuning == thd_get_current() && !ptr)
+		return placeholder;
+	return __real_realloc(ptr, size);
+}
+
+void plat_sock_tune(int fd)
+{
+	uint32_t rcv = SOCK_RCVBUF, snd = SOCK_SNDBUF;
+	tuning = thd_get_current();
+	setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcv, sizeof(rcv));
+	setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &snd, sizeof(snd));
+	tuning = NULL;
 }
 
 void plat_net_status(net_status_t *s)
