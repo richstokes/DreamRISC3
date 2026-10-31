@@ -11,6 +11,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
+import basic
 from romscan import find_chain, load_rom, module_info, word
 
 PACK_BASE = 0x3C00000
@@ -45,6 +46,10 @@ def load_apps(cache):
         app = json.loads(manifest.read_text())
         paths = fetch(app, cache)
         for entry in app["files"]:
+            if "basic" in entry:
+                source = manifest.parent / entry["basic"]
+                entry["data"] = basic.tokenise(source.read_text(encoding="latin-1"))
+                continue
             source = paths[entry["upstream"]] if "upstream" in entry else manifest.parent / entry["local"]
             entry["data"] = source.read_bytes()
         apps.append(app)

@@ -10,6 +10,8 @@ ip%=0: sentat%=0: quit%=FALSE
 FOR i%=0 TO HISTORY-1: rtt%(i%)=-1: NEXT
 $host%="192.168.1.1"
 $stat%="Stopped"
+SYS swi%+0,net%
+IF !net%=2 AND net%?16<>0 THEN $host%=FNdots(net%+16)
 SYS "Wimp_Initialise",200,&4B534154,"Ping" TO ,task%
 PROCwindow
 PROCopen

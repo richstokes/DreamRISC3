@@ -1,0 +1,5 @@
+NetSetup picks how the Dreamcast reaches the network.
+
+Auto looks for a Broadband or LAN Adapter at power on and uses DHCP, so most
+people never need this. Pick Modem for a DreamPi, or W5500 for a serial port
+adapter. Save keeps the choice on a VMU and it applies from the next power on.

@@ -1,0 +1,2 @@
+Ping sends one ICMP echo a second to the host you name and graphs the replies.
+Press Return in the Host box or click Start. A red bar means no reply in 2s.

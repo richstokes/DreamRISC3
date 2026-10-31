@@ -672,7 +672,8 @@ def main():
     args = parser.parse_args()
     image = Path(args.rom).read_bytes()
     rom = bytearray(image[:ROM_BYTES])
-    apps = load_apps(Path(args.rom).parent / "upstream")
+    # BASIC apps are data in the pack, with nothing to recompile
+    apps = [app for app in load_apps(Path(args.rom).parent / "upstream") if "code" in app]
     for offset, (old, new) in ROM_PATCHES.items():
         if word(rom, offset) != old:
             raise SystemExit(f"ROM patch at {offset:#x} does not match this ROM")

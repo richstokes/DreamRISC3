@@ -14,6 +14,7 @@
 #include <netdb.h>
 #include <ppp/ppp.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <string.h>
 #include "../net.h"
 
@@ -24,6 +25,7 @@
 
 extern int net_dhcp_request(uint32_t required_address);
 extern void arch_init_net_dcload_ip(void);
+extern uint32_t plat_hd_sectors(void);
 
 typedef struct {
 	const char *device; /* netif name, NULL if the link is not a plain netif */
@@ -65,7 +67,7 @@ static void say(uint32_t state, const char *text)
 {
 	strncpy((char *)live.text, text, sizeof(live.text) - 1);
 	live.state = state;
-	printf("net: %s (%d bytes free)\n", text, (int)mallinfo().fordblks);
+	printf("net: %s (%d bytes free)\n", text, (int)(_arch_mem_top - (uintptr_t)sbrk(0)) + (int)mallinfo().fordblks);
 }
 
 static void echo_reply(const uint8_t *ip, uint16_t seq, uint64_t delta_us, uint8_t ttl,
@@ -81,6 +83,7 @@ static void echo_reply(const uint8_t *ip, uint16_t seq, uint64_t delta_us, uint8
 	r->rtt_us = (uint32_t)delta_us;
 	r->ttl = ttl;
 	r->valid = 1;
+	printf("net: reply seq %u in %lu us\n", (unsigned)seq, (unsigned long)r->rtt_us);
 }
 
 static netif_t *find_netif(const char *name)
@@ -107,6 +110,11 @@ static int ether_start(int link)
 	const ether_t *e = &ethers[link];
 	netif_t *n;
 	char text[32];
+	/* An SD card owns the serial port as a live hard disc */
+	if (link == LINK_W5500 && plat_hd_sectors()) {
+		say(NET_FAILED, "Serial port is in use by SD");
+		return -2;
+	}
 	snprintf(text, sizeof(text), "Looking for %s", e->label);
 	say(NET_CONNECTING, text);
 	e->add();
@@ -150,9 +158,14 @@ static void ether_configure(void)
 
 static void modem_start(void)
 {
-	int rate = 0, rv;
-	char text[32];
+	int rate = 0, rv, i, n = 0;
+	char text[32], digits[sizeof(config.phone)];
 	say(NET_CONNECTING, "Dialling");
+	/* The dialler stops at anything it has no tone for, such as a dash */
+	for (i = 0; config.phone[i]; i++)
+		if (config.phone[i] >= '0' && config.phone[i] <= '9')
+			digits[n++] = config.phone[i];
+	digits[n] = 0;
 	if (!ppp_ready) {
 		if (ppp_init() < 0) {
 			say(NET_FAILED, "PPP would not start");
@@ -162,12 +175,12 @@ static void modem_start(void)
 	}
 	ppp_set_login(config.user, config.pass);
 	/* DreamPi plays a line voltage trick, so there may be no real dial tone */
-	rv = ppp_modem_init(config.phone, 1, &rate);
+	rv = ppp_modem_init(digits, 1, &rate);
 	if (rv < 0) {
 		say(NET_FAILED, rv == -4 ? "No answer" : "No modem");
 		return;
 	}
-	snprintf(text, sizeof(text), "Connected at %d, starting PPP", rate);
+	snprintf(text, sizeof(text), "Modem up at %d, logging in", rate);
 	say(NET_CONNECTING, text);
 	if (ppp_connect() < 0) {
 		say(NET_FAILED, "PPP login failed");

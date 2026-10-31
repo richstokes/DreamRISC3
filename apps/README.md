@@ -10,7 +10,7 @@ Neither part is loaded at boot. Pack pages stream through the ROM page cache whe
 
 - `name`: application folder, listed under `Apps`
 - `upstream`: files to download, pinned by commit and sha256
-- `files`: folder contents, from `local` files here or `upstream` keys, with a filetype or a load and exec address
+- `files`: folder contents, from `local` files here, `upstream` keys or `basic` text to tokenise, with a filetype or a load and exec address
 - `code.file`: the file holding ARM code, which must have `load` and `exec`
 - `code.seeds`: extra entry points, as `tools/converge.sh` finds them
 - `code.tables`: tables of code pointers, as `[address, count]`
