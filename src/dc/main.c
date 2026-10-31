@@ -333,10 +333,12 @@ static inline void put_row(int y, int height, int pixels)
 
 static void clear_buffers(void)
 {
-	vid_clear(0, 0, 0);
-	vid_flip(1 - back_fb);
+	/* vram_s is the buffer after the one flipped to, so this order clears both and
+	 * leaves vram_s on back_fb, which plat_frame relies on */
 	vid_clear(0, 0, 0);
 	vid_flip(back_fb);
+	vid_clear(0, 0, 0);
+	vid_flip(1 - back_fb);
 	memset(line_sum, 0xA5, sizeof(line_sum));
 }
 
@@ -444,6 +446,12 @@ void plat_frame(const screen_t *s)
 	}
 	if (drawn) {
 		vid_flip(back_fb);
+		/* Flycast only redraws after a write to the buffer it last scanned out, and a
+		 * flip alone is not one, so rewrite a pixel of both. A console never notices. */
+		for (y = 0; y < 2; y++) {
+			volatile uint16_t *pixel = &fb_addr[y][240 * 640];
+			*pixel = *pixel;
+		}
 		back_fb = 1 - back_fb;
 	}
 #ifdef HW_LOG
