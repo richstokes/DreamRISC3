@@ -8,8 +8,10 @@ RISC OS 3.11 running natively on the Sega Dreamcast, built on KallistiOS.
 
 ## Status
 
-- Boots to the full desktop in Flycast. **Not yet tested on a real Dreamcast**
-- On the Mac harness: Filer windows, menus, BASIC apps (`!Calc`, `!Chars`) and a C app (`!Edit`) all open
+- **Runs on a real Dreamcast**: boots to the desktop in ~26-31s, with screen memory checksums matching the Mac harness exactly
+- A scripted run on the console opens a Filer window and launches `!Calc`, `!Chars` and `!Edit`, again matching the harness at every checkpoint
+- Known issue: 1 of 9 console boots stuck before the desktop. Not reproduced since, cause unknown
+- Physical keyboard, mouse and controller are untested on hardware, and nobody has looked at the real video output yet
 - No sound output, no storage beyond ROM and RamFS, and screen modes are stretched to 640x480
 - Memory is tight: ~11.8MB ELF plus 4MB guest RAM out of 16MB
 

@@ -127,6 +127,9 @@ typedef struct {
 	int cursor_x, cursor_y, cursor_h;
 } screen_t;
 
+u32 mach_screen_sum(const screen_t *s);
+u32 mach_polls(void);
+
 /* Provided by each platform */
 uint64_t plat_time_us(void);
 void plat_frame(const screen_t *screen);

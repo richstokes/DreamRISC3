@@ -7,6 +7,7 @@
 #include "../cpu.h"
 
 static uint64_t virtual_us;
+static u32 us_step = 40, us_jitter, jitter = 12345;
 static uint64_t stop_us;
 static const char *shot_path;
 static int frames;
@@ -14,7 +15,8 @@ static screen_t last;
 
 uint64_t plat_time_us(void)
 {
-	return virtual_us += 40;
+		jitter = jitter * 1103515245u + 12345u;
+	return virtual_us += us_step + (jitter >> 16) % (us_jitter + 1);
 }
 
 void plat_log(const char *fmt, ...)
@@ -144,6 +146,7 @@ void plat_poll_input(void)
 			shot_path = next_arg;
 			write_shot();
 			shot_path = saved;
+			fprintf(stderr, "sum=%08X ", mach_screen_sum(&last));
 			fprintf(stderr, "shot %s at %.2fs cursor %d,%d h=%d addr=%X\n", next_arg, virtual_us / 1e6,
 				last.cursor_x, last.cursor_y, last.cursor_h, last.cursor_addr);
 		}
@@ -183,6 +186,12 @@ int main(int argc, char **argv)
 	read_file(argv[2], 256, cmos);
 	stop_us = (uint64_t)(atof(argv[3]) * 1e6);
 	shot_path = argc > 4 ? argv[4] : NULL;
+	if (getenv("DREAM_US_STEP"))
+		us_step = (u32)atoi(getenv("DREAM_US_STEP"));
+	if (getenv("DREAM_SEED"))
+		jitter = (u32)atoi(getenv("DREAM_SEED"));
+	if (getenv("DREAM_US_JITTER"))
+		us_jitter = (u32)atoi(getenv("DREAM_US_JITTER"));
 	if (getenv("DREAM_REPLAY")) {
 		replay = fopen(getenv("DREAM_REPLAY"), "r");
 		replay_read();
@@ -205,6 +214,7 @@ int main(int argc, char **argv)
 		for (u32 v = 0; v < 0x20; v += 4)
 			fprintf(stderr, "vector %02X %08X\n", v, mach_peek(v));
 	}
+	fprintf(stderr, "screen sum %08X\n", mach_screen_sum(&last));
 	fprintf(stderr, "stopped at %.2fs virtual, %d frames, %dx%d %dbpp\n", virtual_us / 1e6,
 		frames, last.width, last.height, last.bpp);
 	return 0;

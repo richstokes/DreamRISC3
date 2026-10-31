@@ -21,6 +21,9 @@ static uint16_t lut[256];
 static u32 last_pal[20];
 static int last_w, last_h, last_bpp, frame_count;
 static int old_cursor_y, old_cursor_h;
+#ifdef HW_REPLAY
+static screen_t replay_screen;
+#endif
 
 uint64_t plat_time_us(void)
 {
@@ -116,6 +119,38 @@ static inline void put_row(int y, int height, int width)
 /* Redraw only lines that changed, plus the lines under the pointer. */
 void plat_frame(const screen_t *s)
 {
+#ifdef HW_REPLAY
+	replay_screen = *s;
+#endif
+#ifdef HW_LOG
+	/* Hardware runs have no video capture: one line every 5s reports progress.
+	 * dcload printf runs with interrupts off, so never log more often. */
+	static uint64_t next_log;
+	static u32 log_frames, log_polls;
+	static int dumped;
+	uint64_t now = timer_us_gettime64();
+	log_frames++;
+	if (now >= next_log) {
+		u32 polls = mach_polls();
+		printf("hb t=%llu frames=%lu polls=%lu mode=%dx%dx%d sum=%08lX\n",
+			(unsigned long long)(now / 1000000), (unsigned long)log_frames,
+			(unsigned long)(polls - log_polls), s->width, s->height, s->bpp,
+			(unsigned long)mach_screen_sum(s));
+		{
+			extern u32 mach_pc_ring[256];
+			extern void mach_dump(void);
+			printf("hb pcs %07lX %07lX %07lX %07lX\n", (unsigned long)mach_pc_ring[0],
+				(unsigned long)mach_pc_ring[85], (unsigned long)mach_pc_ring[170],
+				(unsigned long)mach_pc_ring[255]);
+			if (s->bpp == 1 && now > 30000000 && !dumped) {
+				dumped = 1;
+				mach_dump();
+			}
+		}
+		log_polls = polls;
+		next_log = now + 5000000;
+	}
+#endif
 	u32 addr = s->start, line_bytes = (u32)(s->width * s->bpp / 8);
 	int width = s->width > 640 ? 640 : s->width;
 	int height = s->height > MAX_LINES * 2 ? MAX_LINES * 2 : s->height;
@@ -208,6 +243,37 @@ static void poll_keyboard(void)
 	mod_down = mods;
 }
 
+#ifdef HW_REPLAY
+/* Scripted input for unattended hardware tests, generated from a .replay file */
+typedef struct { u32 ms; char verb; int a, b; } replay_t;
+#include "replay.h"
+static u32 replay_pos;
+static int replay_dx, replay_dy, replay_buttons;
+
+static void replay_step(int *dx, int *dy, int *buttons)
+{
+	u32 now = (u32)(timer_us_gettime64() / 1000);
+	while (replay_pos < sizeof(replay_events) / sizeof(replay_events[0]) &&
+	       now >= replay_events[replay_pos].ms) {
+		const replay_t *e = &replay_events[replay_pos++];
+		if (e->verb == 'm') {
+			replay_dx += e->a;
+			replay_dy += e->b;
+		} else if (e->verb == 'b') {
+			replay_buttons = e->a;
+		} else {
+			printf("replay checkpoint %d sum=%08lX\n", e->a,
+				(unsigned long)mach_screen_sum(&replay_screen));
+		}
+	}
+	*dx = replay_dx > 16 ? 16 : replay_dx < -16 ? -16 : replay_dx;
+	*dy = replay_dy > 16 ? 16 : replay_dy < -16 ? -16 : replay_dy;
+	replay_dx -= *dx;
+	replay_dy -= *dy;
+	*buttons = replay_buttons;
+}
+#endif
+
 void plat_poll_input(void)
 {
 	int dx = 0, dy = 0, buttons = 0;
@@ -239,6 +305,9 @@ void plat_poll_input(void)
 			if (c->buttons & CONT_X) buttons |= 4;
 		}
 	}
+#ifdef HW_REPLAY
+	replay_step(&dx, &dy, &buttons);
+#endif
 	mach_mouse(dx, dy, buttons);
 }
 

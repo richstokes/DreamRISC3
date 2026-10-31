@@ -1013,6 +1013,20 @@ void mach_dump(void)
 		ioc.irqa, ioc.mska, ioc.irqb, ioc.mskb, ioc.fiq, ioc.mskf, C->psr, kb.state, kb.key_enabled, kb.mouse_enabled, kb.mouse_dx, kb.mouse_dy);
 }
 
+/* Checksum of the visible screen memory, comparable between platforms. */
+u32 mach_screen_sum(const screen_t *s)
+{
+	u32 size = (u32)(s->width * s->bpp / 8) * (u32)s->height, sum = 2166136261u, i;
+	for (i = 0; i < size && s->start + i < RAM_SIZE; i++)
+		sum = (sum ^ s->ram[s->start + i]) * 16777619u;
+	return sum;
+}
+
+u32 mach_polls(void)
+{
+	return mach_pc_pos;
+}
+
 void mach_stop(void)
 {
 	longjmp(run_env, 1);

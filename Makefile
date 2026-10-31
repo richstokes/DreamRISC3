@@ -48,7 +48,7 @@ $(DCOBJ)/mach.o: src/mach.c src/cpu.h
 
 $(DCOBJ)/main.o: src/dc/main.c src/cpu.h
 	@mkdir -p $(DCOBJ)
-	$(KOS_CC) $(DCFLAGS) -c $< -o $@
+	$(KOS_CC) $(DCFLAGS) $(if $(HW_LOG),-DHW_LOG) $(if $(HW_REPLAY),-DHW_REPLAY -Ibuild) -c $< -o $@
 
 $(DCOBJ)/images.o: src/dc/images.S build/rom.bin assets/cmos.bin
 	@mkdir -p $(DCOBJ)

@@ -41,9 +41,19 @@ tools/converge.sh tests/apps.replay 136
 
 Replays hold `move`, `button`, `key` and `shot` lines. Slam to a corner first for a fixed origin. Pointer scale is ~1.5px per unit across and ~0.75 down in mode 12.
 
+## Hardware Results (10/31)
+
+The Good: 8 of 9 boots reached the desktop, checksum `C50F35BC`, same as the harness. The replay run matched all three checkpoints, so the Filer, BASIC and a C app behave identically on the SH-4. Boot is ~26-31s, at ~49 of 50 frames/s.
+
+The Bad: boot 2 stuck at the 1bpp screen (`66733280`) for 90s+ with polls taking ~73us instead of ~15us. That looks like an interrupt or keyboard retry storm, but that's a guess: the run had no PC logging. 88 randomised clock runs on the harness and 6 more console boots did not reproduce it.
+
+Not checked: actual speed under load (polls count branches and IO, so they are not a MIPS figure), physical input, and what the video output looks like on a screen.
+
+Heartbeat builds use `HW_LOG=1`, and `HW_REPLAY=1` adds a generated `build/replay.h` from `tools/replay2c.py`. Screen checksums are the only way to verify a console run unattended. If a boot is stuck in 1bpp at 30s the heartbeat dumps IOC state and recent SWIs.
+
 ## Next Steps
 
-1. Run on real hardware and measure speed
+1. Look at the real screen, try physical keyboard and mouse, and catch the boot hang if it recurs
 2. Stream from disc to free RAM: page ROM data on demand through the page tables, and build `!Draw`, `!Paint` as overlays loaded on a dispatch miss
 3. Storage: ADFS images from disc, then SD or VMU
 4. Sound through AICA, and a true 640x480 desktop mode
