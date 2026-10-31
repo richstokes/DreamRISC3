@@ -1,0 +1,14 @@
+# Open Apps and drag it far past the bottom of the screen. It must stop on screen.
+70 move -1000 1000
+74 move 55 -23
+76 button 1
+76.2 button 0
+84 move 145 -447
+85 button 1
+85.2 move 0 500
+95 button 0
+98 shot build/drag1.ppm
+99 button 1
+99.2 move 100 -60
+103 button 0
+106 shot build/drag2.ppm
