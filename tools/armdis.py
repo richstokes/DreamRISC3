@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Disassemble a ROM range: dis.py <hex addr> [count]. Uses Xcode's llvm-objdump."""
+"""Disassemble a ROM range: armdis.py <hex addr> [count]. Uses Xcode's llvm-objdump."""
 import subprocess, sys, tempfile, os
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
