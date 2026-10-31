@@ -241,8 +241,10 @@ const ov_header_t *plat_overlay_load(int unit)
 
 static inline uint16_t vidc_565(u32 e)
 {
-	u32 r = e & 15, g = (e >> 4) & 15, b = (e >> 8) & 15;
-	return (uint16_t)((r << 12) | (r << 8 & 0x800) | (g << 7) | (g << 3 & 0x60) | (b << 1) | (b >> 3));
+	/* Acorn video black sits at level 3, as Arculator's default black level: (n-3)*255/12 */
+	static const u8 level[16] = {0, 0, 0, 0, 21, 42, 63, 85, 106, 127, 148, 170, 191, 212, 233, 255};
+	u32 r = level[e & 15], g = level[(e >> 4) & 15], b = level[(e >> 8) & 15];
+	return (uint16_t)((r >> 3 << 11) | (g >> 2 << 5) | (b >> 3));
 }
 
 static void build_lut(const screen_t *s)

@@ -79,7 +79,9 @@ Console check (10/31): opened `:0` in the Filer with the checksum matching the h
 
 `assets/cmos.bin` sets MonitorType 3 (VGA), WimpMode 27 and clears the auto mode bit (logical `0xC3` bit 4), so the desktop boots at 640x480 and draws to the Dreamcast framebuffer 1:1. Hand patched and checksummed, as `*Configure` isn't in the recompiled code.
 
-It also sets WimpFlags to 15 (physical byte `0x15`). The usual 111 lets a window be dragged fully off the bottom, where neither the pointer nor a click on its icon can get it back. The harness can save CMOS with `DREAM_CMOS_OUT`.
+It also sets WimpFlags to 15 (physical byte `0x15`). The usual 111 lets a window be dragged fully off the bottom, where neither the pointer nor a click on its icon can get it back.
+
+Colours follow Arculator's default Acorn black level, `(n-3)*255/12` per 4-bit VIDC level, so levels 0-3 are all black. A straight 4-bit expansion looks washed out next to a real machine. The harness can save CMOS with `DREAM_CMOS_OUT`.
 
 A framebuffer dump in Flycast (`HW_DUMP=1`) shows the desktop sharp at full size with the right colours.
 
