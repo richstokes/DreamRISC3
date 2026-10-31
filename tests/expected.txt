@@ -13,3 +13,4 @@ tests/tertis-exit.replay 152 6E9B916C
 tests/web.replay 98 BC1BCB22
 tests/logo-lang.replay 772 26737549 build/test.adf
 tests/logo-ui.replay 196 DE19674D
+tests/web-iconbar.replay 124 00000000
