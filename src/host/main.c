@@ -245,31 +245,39 @@ void plat_rom_read(u32 page, u8 *dest)
 	page_loads[page]++;
 }
 
-static u8 *disc_image;
-static u32 disc_bytes;
+static FILE *disc_file;
 
-u8 *plat_disc_load(u32 bytes)
+int plat_disc_open(void)
 {
 	const char *path = getenv("DREAM_ADF");
-	FILE *f = path ? fopen(path, "rb") : NULL;
 	if (!path)
-		return NULL;
-	disc_image = calloc(1, bytes);
-	disc_bytes = bytes;
-	if (f) {
-		if (fread(disc_image, 1, bytes, f) != bytes)
-			fprintf(stderr, "short disc image %s\n", path);
-		fclose(f);
-	}
-	return disc_image;
+		return 0;
+	disc_file = fopen(path, "rb"); /* missing means a blank disc */
+	return 1;
+}
+
+int plat_disc_read(u8 *sector)
+{
+	return disc_file && fread(sector, 1, 1024, disc_file) == 1024;
+}
+
+void plat_disc_close(void)
+{
+	if (disc_file)
+		fclose(disc_file);
+	disc_file = NULL;
 }
 
 static void disc_save(void)
 {
 	const char *path = getenv("DREAM_ADF_OUT");
-	FILE *f = path && disc_image ? fopen(path, "wb") : NULL;
+	FILE *f = path && fdc_present() ? fopen(path, "wb") : NULL;
 	if (f) {
-		fwrite(disc_image, 1, disc_bytes, f);
+		static u8 sector[1024];
+		for (int i = 0; i < 80 * 2 * 5; i++) {
+			fdc_copy_sector(i, sector);
+			fwrite(sector, 1, sizeof(sector), f);
+		}
 		fclose(f);
 	}
 }

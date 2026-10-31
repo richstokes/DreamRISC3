@@ -63,7 +63,7 @@ Flycast check (10/31): launched Logo and picked Tree from the menu from a disc i
 
 ## Storage
 
-`src/fdc.c` is a native driver behind the WD1772 registers, so RISC OS's own ADFS and FileCore run unchanged, including their FIQ byte transfers. The disc (`assets/adfs.adf.gz`) is an 800KB ADFS E image that RISC OS formatted itself on the harness via `tests/format.replay`. It loads into RAM at boot, so writes work but vanish at power off.
+`src/fdc.c` is a native driver behind the WD1772 registers, so RISC OS's own ADFS and FileCore run unchanged, including their FIQ byte transfers. The disc (`assets/adfs.adf.gz`) is an 800KB ADFS E image that RISC OS formatted itself on the harness via `tests/format.replay`. It loads into RAM at boot, so writes work but vanish at power off. Only 9 of its 800 sectors hold real data, so blank ones just record their fill byte and get memory when first written. That saves ~790KB.
 
 Things that bit us, for whoever touches this next:
 
@@ -179,20 +179,22 @@ Flycast (10/31): `!Ping` launched by replay and ran through the real KOS driver 
 - Words in the address bar search with DuckDuckGo Lite. Google's results need JavaScript, which no browser here can run, so searches from its box go to DuckDuckGo too (`search_elsewhere`)
 - Up and Down scroll a few lines, Page Up and Down a screen
 - **Certificates are not checked.** There's no CA store and no trusted clock, so HTTPS stops a passive listener but doesn't prove who you're talking to. Fine for reading, not for anything private, and the home page says so
-- Memory: mbedTLS adds ~410KB of code, so only ~300KB of heap is usable without an SD card (the floppy image costs 0.8MB) and ~1.2MB with one. Connections are set up first, then the page takes the largest of 256KB to 32KB of text that leaves room for the network. That is ~700 lines at the bottom end, and a longer page stops with a note. Eight page loads in a row in Flycast showed no leak
+- Memory: mbedTLS adds ~410KB of code. Connections are set up first, then the page takes the largest of 256KB to 32KB of text that leaves room for the network, and a longer page stops with a note. Page loads in a row in Flycast showed no leak
 
 The harness has no TLS, but its sockets are real: `tests/webserver.py` serves a redirect, chunked text, links, forms, a 300KB script and a very long page. Replays in the checked set only use the built-in `about:home`, so they need no server.
 
 Things that bit us:
 
 - KOS `malloc` isn't zeroed where the Mac's fresh memory happened to be. A missing `line_at[0] = 0` hung the console and not the harness
-- KOS gives every TCP socket 64KB each way, ~130KB a connection, which failed with `ENOBUFS` without an SD card. `SO_RCVBUF` before connecting leaks, as `connect()` overwrites the pointer, so `--wrap=realloc` hands KOS a placeholder for that one call (`plat_sock_tune`). Sockets are now 16KB in and 4KB out
+- KOS gives every TCP socket 64KB each way, ~130KB a connection, which failed with `ENOBUFS` when the floppy still filled the heap. `SO_RCVBUF` before connecting leaks, as `connect()` overwrites the pointer, so `--wrap=realloc` hands KOS a placeholder for that one call (`plat_sock_tune`). Sockets are now 16KB in and 4KB out
 - newlib's errno values aren't BSD's, so `net_sock.c` maps the ones that drive control flow
 - In BASIC an uppercase name starting with a keyword tokenises as that keyword, so `LINEH` is `LINE H`
 
 Console (10/31), real BBA under dcload, with the fetch started natively: info.cern.ch, and over HTTPS example.com, text.npr.org and en.wikipedia.org (cut at 96KB, 352 lines), with the desktop running throughout. Without an SD card, Flycast fetched https://dcvmu.com/ (270 lines). One earlier Flycast run died in its own process during a fetch, which hasn't happened since.
 
-Flycast (10/31), no SD card, the real internet: Google's home page with its search box, a typed search with full results, Hacker News and 734 lines of Wikipedia's Dreamcast article.
+Flycast (10/31), no SD card, the real internet: Google's home page with its search box, DuckDuckGo Lite, a typed search with full results and Hacker News. Wikipedia's Dreamcast article reached 734 lines before the floppy went sparse, on the smallest page size.
+
+Open question: scripted typing in hardware replays loses bursts of characters while `!Web` runs (`news.ycombinator.com` arrived as `news.ynator.om`). Whether a real keyboard can do this is unknown.
 
 Open question: this is the same launch problem as `!Ping`. Under dcload a scripted launch of `!Web` didn't come up in 2 of 2 runs (`Filer_Run` and `WimpTask` alike), so the app and the fetch have not yet run together on a console. Needs a run from GDEMU with no dcload.
 

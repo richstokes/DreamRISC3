@@ -31,7 +31,7 @@ RISC OS 3.11 running natively on the Sega Dreamcast, built on KallistiOS.
 - **Network**: `!Ping` and `!NetSetup` are in the Apps folder. A Broadband or LAN Adapter comes up by itself with DHCP; the modem (DreamPi) and W5500 are picked in `!NetSetup`. BBA and modem work in Flycast. On a real BBA under dcload the stack pinged the gateway at 2-3ms, but launching `!Ping` by script was unreliable there; not yet tried without dcload
 - **Web**: `!Web` in the Apps folder is a small text browser with HTTP, HTTPS, forms and search. Google, DuckDuckGo, Hacker News and Wikipedia work in Flycast, and real sites have loaded on a console, but the window and a fetch have only run together in Flycast and on the harness. HTTPS is encrypted but certificates are not verified, so don't use it for anything private
 - **Logo** is in the Apps folder too: a windowed turtle graphics language with six demos, written in BBC BASIC so it runs on the ROM's own recompiled BASIC
-- Memory: ~14.7MB of 16MB with a card (8.8MB ELF, ~1.9MB ROM cache, 4MB guest RAM), plus 0.8MB for the floppy image without one
+- Memory: ~14.7MB of 16MB with a card (8.8MB ELF, ~1.9MB ROM cache, 4MB guest RAM). The floppy image only keeps sectors with data, ~10KB as shipped
 
 ## Build
 

@@ -168,7 +168,8 @@ u32 fdc_read(u32 addr);
 void fdc_latch_a(u32 value);
 void fdc_latch_b(u32 value);
 int fdc_ready(void);
-u8 *fdc_image(void);
+int fdc_present(void);
+void fdc_copy_sector(int index, u8 *dest); /* 1024 bytes */
 
 /* IDE drive (ide.c) and the formatter (hdformat.c) */
 #define HD_HEADS 16
@@ -194,7 +195,9 @@ void net_swi(u32 op);
 uint64_t plat_time_us(void);
 void plat_rom_read(u32 page, u8 *dest); /* one 32KB ROM page; may block on disc */
 const ov_header_t *plat_overlay_load(int unit); /* may block on disc */
-u8 *plat_disc_load(u32 bytes); /* the ADFS image in RAM, or NULL for an empty drive */
+int plat_disc_open(void);      /* 0 for an empty drive */
+int plat_disc_read(u8 *sector); /* the next 1024 bytes; 0 at the end */
+void plat_disc_close(void);
 u32 plat_hd_sectors(void);      /* 0 when no hard disc is attached */
 int plat_hd_read(u32 lba, u8 *dest);
 int plat_hd_write(u32 lba, const u8 *src);

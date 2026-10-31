@@ -9,7 +9,7 @@
 #define SIDES 2
 #define SECTORS 5
 #define SECTOR_BYTES 1024
-#define DISC_BYTES (TRACKS * SIDES * SECTORS * SECTOR_BYTES)
+#define DISC_SECTORS (TRACKS * SIDES * SECTORS)
 #define TRACK_BYTES 6250
 #define ID_INTERVAL_US 40000 /* 300rpm, five sectors a track */
 
@@ -25,8 +25,11 @@
 
 enum { XFER_NONE, XFER_READ, XFER_WRITE, XFER_FORMAT };
 
+static u8 *sectors[DISC_SECTORS];
+static u8 sector_fill[DISC_SECTORS];
+
 static struct {
-	u8 *image;
+	int present;
 	u8 status, track, sector, data, command;
 	int cur_track, step_dir, side, drive, motor, double_density;
 	int xfer;
@@ -46,14 +49,50 @@ static u8 track0_bit(void)
 
 static int sector_valid(void)
 {
-	return f.image && !f.drive && f.double_density && f.cur_track < TRACKS &&
+	return f.present && !f.drive && f.double_density && f.cur_track < TRACKS &&
 	       f.track == f.cur_track && f.sector < SECTORS;
 }
 
-static u8 *sector_ptr(int track, int side, int sector)
+/* Almost all of the disc is one repeated byte, and that's 790KB of heap the network
+ * and apps can use. So only sectors with real data get memory: a blank one reads
+ * from a scratch copy and is allocated when something first writes to it. */
+static int sector_index(int track, int side, int sector)
 {
-	return f.image + (size_t)(track * SIDES + side) * SECTORS * SECTOR_BYTES +
-	       (size_t)sector * SECTOR_BYTES;
+	return (track * SIDES + side) * SECTORS + sector;
+}
+
+static u8 *sector_for_read(int index)
+{
+	static u8 blank[SECTOR_BYTES];
+	if (sectors[index])
+		return sectors[index];
+	memset(blank, sector_fill[index], SECTOR_BYTES);
+	return blank;
+}
+
+static u8 *sector_for_write(int index)
+{
+	if (!sectors[index]) {
+		sectors[index] = malloc(SECTOR_BYTES);
+		if (sectors[index])
+			memset(sectors[index], sector_fill[index], SECTOR_BYTES);
+	}
+	return sectors[index];
+}
+
+/* Whole sector data, which stays blank if it's one repeated byte, as formatting is */
+static void sector_store(int index, const u8 *data)
+{
+	int n;
+	for (n = 1; n < SECTOR_BYTES && data[n] == data[0]; n++)
+		;
+	if (n == SECTOR_BYTES) {
+		free(sectors[index]);
+		sectors[index] = NULL;
+		sector_fill[index] = data[0];
+	} else if (sector_for_write(index)) {
+		memcpy(sectors[index], data, SECTOR_BYTES);
+	}
 }
 
 static void finish(u8 status)
@@ -101,7 +140,7 @@ static void apply_format(void)
 			if (b[i + 3] == 0xFB && i + 4 + SECTOR_BYTES <= end) {
 				if (track >= 0 && track < TRACKS && side < SIDES && sector >= 0 &&
 				    sector < SECTORS)
-					memcpy(sector_ptr(track, side, sector), b + i + 4, SECTOR_BYTES);
+					sector_store(sector_index(track, side, sector), b + i + 4);
 				i += 4 + SECTOR_BYTES;
 				continue;
 			}
@@ -135,7 +174,7 @@ void fdc_tick(uint64_t now)
 				finish(ST_MOTOR | ST_RNF);
 				break;
 			}
-			f.buffer = sector_ptr(f.cur_track, f.side, f.sector);
+			f.buffer = sector_for_read(sector_index(f.cur_track, f.side, f.sector));
 			next_read_byte();
 		} else {
 			finish(ST_MOTOR);
@@ -146,7 +185,7 @@ void fdc_tick(uint64_t now)
 		break;
 	case 0xC:
 		if (f.pos == 0 && f.reading_id) {
-			if (!f.image || f.drive || !f.double_density) {
+			if (!f.present || f.drive || !f.double_density) {
 				finish(ST_MOTOR | ST_RNF);
 				break;
 			}
@@ -219,9 +258,13 @@ void fdc_write(u32 a, u32 v)
 				schedule(200);
 				break;
 			}
+			f.buffer = sector_for_write(sector_index(f.cur_track, f.side, f.sector));
+			if (!f.buffer) {
+				finish(ST_MOTOR | ST_RNF);
+				break;
+			}
 			f.xfer = XFER_WRITE;
 			f.len = SECTOR_BYTES;
-			f.buffer = sector_ptr(f.cur_track, f.side, f.sector);
 			f.status = ST_MOTOR | ST_BUSY | ST_DRQ;
 			mach_fiq(FIQ_DATA);
 			break;
@@ -309,17 +352,33 @@ void fdc_latch_b(u32 v)
 
 int fdc_ready(void)
 {
-	return f.motor && f.image && !f.drive;
+	return f.motor && f.present && !f.drive;
 }
 
-u8 *fdc_image(void)
+int fdc_present(void)
 {
-	return f.image;
+	return f.present;
+}
+
+void fdc_copy_sector(int index, u8 *dest)
+{
+	memcpy(dest, sector_for_read(index), SECTOR_BYTES);
+}
+
+static void fdc_load(void)
+{
+	static u8 sector[SECTOR_BYTES];
+	int i;
+	for (i = 0; i < DISC_SECTORS && plat_disc_read(sector); i++)
+		sector_store(i, sector);
+	plat_disc_close();
 }
 
 void fdc_init(void)
 {
 	f.status = ST_MOTOR;
 	f.step_dir = 1;
-	f.image = plat_disc_load(DISC_BYTES); /* platforms skip this when an SD card holds the data */
+	f.present = plat_disc_open(); /* platforms skip this when an SD card holds the data */
+	if (f.present)
+		fdc_load();
 }

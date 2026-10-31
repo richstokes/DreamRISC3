@@ -193,28 +193,30 @@ int plat_hd_prepare(void)
 	return ok;
 }
 
-u8 *plat_disc_load(u32 bytes)
+static file_t disc_file = FILEHND_INVALID;
+
+int plat_disc_open(void)
 {
 	char path[192];
-	u8 *image;
-	file_t f;
 	int pass;
 	if (sd_sectors)
-		return NULL; /* the card takes over, and the 800KB goes back to the heap */
-	image = memalign(32, bytes);
-	for (pass = 0, f = FILEHND_INVALID; pass < 2 && f == FILEHND_INVALID; pass++) {
+		return 0; /* the card takes over */
+	for (pass = 0; pass < 2 && disc_file == FILEHND_INVALID; pass++) {
 		snprintf(path, sizeof(path), pass ? "/pc%s/adfs.adf" : "/cd/adfs.adf", PC_ROOT);
-		f = fs_open(path, O_RDONLY);
+		disc_file = fs_open(path, O_RDONLY);
 	}
-	if (f == FILEHND_INVALID || !image)
-		return NULL;
-	dcache_purge_range((uintptr_t)image, bytes);
-	if ((u32)fs_read(f, image, bytes) != bytes) {
-		fs_close(f);
-		return NULL;
-	}
-	fs_close(f);
-	return image;
+	return disc_file != FILEHND_INVALID;
+}
+
+int plat_disc_read(u8 *sector)
+{
+	return fs_read(disc_file, sector, 1024) == 1024;
+}
+
+void plat_disc_close(void)
+{
+	fs_close(disc_file);
+	disc_file = FILEHND_INVALID;
 }
 
 /* Filled from disc; each unit is linked to run at this address. */
