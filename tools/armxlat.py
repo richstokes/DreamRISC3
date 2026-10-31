@@ -521,10 +521,12 @@ def flag_liveness(rom, lead, code, base=ROM_BASE):
             live = live | flags_read(i)
         return live
 
+    # Flags flow backwards, so walking high to low settles in far fewer passes.
+    order = sorted(blocks, reverse=True)
     changed = True
     while changed:
         changed = False
-        for start in blocks:
+        for start in order:
             value = transfer(start, False)
             if value != live_in[start]:
                 live_in[start] = value
