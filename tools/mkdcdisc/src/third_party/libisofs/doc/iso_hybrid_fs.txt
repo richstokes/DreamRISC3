@@ -1,0 +1,187 @@
+
+          Overview of ISO 9660 hybrid filesystems as libisofs output
+
+               by Thomas Schmitt    - mailto:scdbackup@gmx.net
+               Libburnia project    - mailto:libburn-hackers@pykix.org
+                                  07 Jun 2012
+
+
+The overall framework for the filesystem images produced by libisofs is given
+by ECMA-119, which is also known as ISO 9660. The hybrid aspect is the
+opportunity to add access structures of other filesystems.
+
+The framework suggests a logical block size of 2048 and divides the space of
+filesystem blocks into several parts:
+
+- The System Area. Beginning at the image start block.
+  32 KiB of arbitrary data, which are not considered to be
+  part of structure or payload of the ISO image.
+
+- The Volume Descriptors. Beginning at image start block + 16.
+  The Primary Volume Descriptor block is the starting point of the ECMA-119
+  tree of directories and files. Among other information, it records the size
+  of the image block space. Other descriptor blocks may lead to boot images
+  or to the directory trees of add-on filesystems (e.g. Joliet).
+
+- The area of directory structures and data file content.
+  libisofs divides it into two sub areas:
+
+  - Directory structures.
+    They record the file names and attributes of the ECMA-119 tree and
+    of eventual add-on filesystem.
+
+  - Data file content.
+    The blocks in this area are referred by zero or more file entries in the
+    directory trees. They store the data content or regular files. Start block
+    address of a file and exact byte count are stored in the trees.
+
+
+libisofs may slide-in some data blocks which are neither part of the structure
+nor part of file content. See doc/checksums.txt, Checksum Array, Checksum Tags.
+In the same way, the superblocks of other filesystems could be inserted into
+the image.
+
+The only block addresses which are fixely occupied are image_start+16 (Primary
+Volume Descriptor) and image_start+17 (first possible position of Volume
+Descriptor Set Terminator).
+Nevertheless, libisofs considers as reserved the blocks image_start+16 to
+image_start+31, because add-ons like El Torito, Joliet, or ISO 9660:1999
+need their own volume descriptors stored before the volume descriptor set
+terminator block. Only one volume descriptor per add-on filesystem may be
+written there, and its exact position will be chosen by libisofs.
+
+
+The System Area in image_start to image_start+15 may be used for a partition
+table or the superblock of an additional filesystem structure.
+Another place for superblocks is after image_start+31. E.g. UDF stores its
+Anchor at block address 256, or at media_size - 1 - 256, or at media_size - 1.
+
+In both cases the superblocks would point to filesystem-specific data which
+are stored in the area of directory structures. These data would then refer to
+the same file contents as the ECMA-119 directory structure.
+
+
+-----------------------------------------------------------------------
+What libisofs needs to get implemented for a new add-on filesystem:
+
+The emerging overall image is represented by an Ecma119Image object.
+This is an instance of quite fat struct ecma119_image which, among many
+others, holds some parameters which are specific to the implemented add-on
+filesystems. It is defined in libisofs/ecma119.h.
+It gets programmed by applications via API calls for IsoWriteOpts which is
+defined as struct iso_write_opts in libisofs/ecma119.h.
+
+
+The content of the System Area may be submitted opaquely via
+Ecma119Image.system_area_data or it may get generated underneath
+libisofs/system_area.c:iso_write_system_area() by a specific "System area type"
+in Ecma119Image.system_area_options. The latter happens when the block adresses
+of all components, directories, and files are determined. (One may have to
+dig deep in the graph of objects to obtain everything.)
+
+If a new system area type is needed, then it has to be documented in
+libisofs/ecma119.h at struct ecma119_image.system_area_options and in
+libisofs/libisofs.h at call iso_write_opts_set_system_area(). See e.g.
+"MIPS Big Endian Volume Header".
+
+libisofs/system_area.h offers an inner API to define partitions for Apple
+Partition Map (APM) and for GPT from within the compute_data_blocks methods
+of the IsoImageWriter objects (see below). If both get combined, then
+APM block size must be 2048. In this case, the partition entries of APM
+and GPT overwrite the following bytes of the submitted
+Ecma119Image.system_area_data:
+  0x0000    to 0x0007   by { 0x45, 0x52, 0x08 0x00, 0xeb, 0x02, 0xff, 0xff}
+  0x0200    to 0x02ff   by GPT header block
+  0x0800    to APM_end  by APM blocks (APM_end = 2048*(Num_APM_partitions + 1)
+  APM_end+1 to 0x7fff   by GPT entries
+This offers still room for a PC-BIOS MBR which has essentially no-op commands
+in its first 8 bytes.
+If no GPT is desired, then the bytes after APM_end stay unaltered.
+If more modesty with overwriting is needed, then this would have to be caused
+by either a specialized system area type or by additional elements of the
+inner API for APM and GPT.
+
+
+The layout of the areas above image_start+16 is defined in function
+libisofs/ecma119.c:ecma119_image_new(). This is done by creating and
+registering writer objects.
+Writers are instances of typedef struct Iso_Image_Writer IsoImageWriter.
+The struct is defined in libisofs/writer.h.
+
+The Joliet writer is a comprehensive example of an add-on filesystem writer.
+
+First it gets counted for the allocation of the registration array
+    if (target->joliet) {
+        nwriters++;
+    }
+
+Later it gets created and registered
+    if (target->joliet) {
+        ret = joliet_writer_create(target);
+
+The function libisofs/joliet.c:joliet_writer_create() accounts for one block
+that will hold the Joliet volume descriptor
+    /* we need the volume descriptor */
+    target->curblock++;
+Not all add-on filesystems will need a volume descriptor. Joliet does.
+
+joliet_writer_create() further generates a tree of JolietNode objects by
+traversing the image model tree of IsoNode objects.
+    ret = joliet_tree_create(target);
+If a JolietNode represents a regular file then it refers to an IsoFileSrc
+object, which represents its data content in the emerging image.
+struct Iso_File_Src is defined in libisofs/filesrc.h.
+
+
+libisofs will call the methods of the writer object when it computes the
+block addresses of the various image components, when it writes volume
+descriptors, when it writes directory trees, and when it finally disposes the
+Ecma119Image object.
+Before calling the first method, it will publish the number of data file
+content blocks in Ecma119Image.filesrc_blocks.
+
+The method IsoImageWriter.compute_data_blocks() has to predict the storage
+needs in the area of directory trees.
+It computes and records Joliet-specific addresses and sizes:
+  Ecma119Image.joliet_ndirs, Ecma119Image.joliet_l_path_table_pos,
+  Ecma119Image.joliet_m_path_table_pos , Ecma119Image.joliet_path_table_size
+  Ecma119Image.j_part_l_path_table_pos, Ecma119Image.j_part_m_path_table_pos
+as well as the sizes and block addresses of Joliet directories.
+It increases the counter of virtually written blocks:
+  Ecma119Image.curblock
+which is used to determine the start addresses of the image parts and
+finally gives the overall image size.
+
+The method IsoImageWriter.write_vol_desc() composes and writes the Joliet
+volume descriptor. (Such writing is not necessarily needed for add-on
+filesystems.)
+
+IsoImageWriter.write_data() writes the records of the Joliet directory tree.
+This has to be exactly the same number of blocks by which Ecma119Image.curblock
+was increased during IsoImageWriter.compute_data_blocks().
+When it gets called, the number of content data extents, their sizes, and their
+addresses are known: JolietNode.IsoFileSrc->nsections, ->sections[].size,
+->sections[].block. 
+struct iso_file_section is defined in libisofs/libisofs.h.
+
+IsoImageWriter.free_data() disposes the writer and the JolietNode tree.
+
+
+Further examples for add-on writers are those created by:
+
+  hfsplus_writer_create()        is in charge for initial part of an
+                                 embedded HFS+ filesystem
+  hfsplus_tail_writer_create()   is in charge for trailing part of HFS+
+                                 after the data file content area
+  gpt_tail_writer_create()       is in charge for the backup GPT near the
+                                 end of the ISO image
+
+-------------------------------------------------------------------------------
+
+This text is under
+Copyright (c) 2012 Thomas Schmitt <scdbackup@gmx.net>
+It shall only be modified in sync with libisofs. Please mail change requests to
+mailing list <libburn-hackers@pykix.org> or to the copyright holder in private.
+If you make use of the license to derive modified versions of libisofs then
+you are entitled to modify this text under that same license.
+

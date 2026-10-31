@@ -1,0 +1,193 @@
+FEATURES
+========
+
+Contents:
+
+2.0 Operations on image tree
+2.1 ECMA-119
+2.2 Rock Ridge
+2.3 Joliet
+2.4 El-Torito
+2.5 UDF
+2.6 HFS/HFS+
+2.7 Others
+
+
+===============================================================================
+
+2.0 Operations on image tree
+-----------------------------
+
+Basic:
+	- We HAVE TO Support addition of directories
+		- From filesystem 
+		- From filesystem recursively
+		- New on image
+	- We HAVE TO support addition of files
+		- From local filesystem
+		- From previous/ms images
+	- We HAVE TO support addition of other POSIX file types
+		- From filesystem
+		- New on image 
+		- Types: symlinks, block/char devices, fifos, sockets...
+	- We HAVE TO support modification of file names on image
+	- We HAVE TO support modification of POSIX attributes:
+		- Uid/Gid
+		- Permissions (we DON'T HAVE TO support full mode modification,
+		               as we don't want a dir to be changed to a reg file!!)
+		- Timestamps
+	- We HAVE TO support deletion of nodes.
+	- We HAVE TO support iteration of directory tree.
+	- We WANT TO support direct getting (without iteration) of the number of
+	  nodes in a directory.
+
+Extras:
+	- We WANT TO support on-the-fly modification of file contents, to
+	  allow things like compression and encryption.
+
+Notes: many operations will need RR extensions to be actually reflected on
+the image.
+
+===============================================================================
+
+2.1 ECMA-119
+------------
+
+Support for ECMA-119 (ISO-9660) specification.
+
+2.1.1 Creation
+--------------
+
+We HAVE TO support creation of new images.
+
+	General:
+	    - We HAVE TO support single volume images
+		- We DON'T NEED TO support multiple volume images.
+			It seems multiple volume images are not used.
+		- We HAVE TO support bootable volumes (see 2.4 in this doc)
+	Conformance:
+		- We HAVE TO support Level 1 restrictions (ECMA-119 10.1)
+		- We HAVE TO support Level 2 restrictions (ECMA-119 10.2)
+			Single Section files have a theoric size limit of 4GB (data length
+			is a 32-bit number, see ECMA-119 9.1.4). However I think I have 
+			read that only files up to 2GB are supported.
+		- We MAY support full Level 3 (ECMA-119 10.3)
+			Multiple file sections are useful to support files higher than 
+			level 2 limit. However, it seems it's a feature not supported in
+			most O.S. nowadays, so it's not very useful.
+		- We DON'T WANT TO support files recording in interleaved mode 
+		  (ECMA-119 6.4.3)
+			It seems a feature that it's not used.
+		- We DON'T WANT TO support associated files (ECMA-119 6.5.4)
+			What is that? Is it used?
+		- We DON'T WANT TO support Volume Partitions (ECMA-119 8.6)
+			What is that? Is it used?
+		- We DON'T WANT TO support extended attribute records (ECMA-119 9.5)
+			It seems an unused feature. RR is a better alternative.
+		- We DON'T NEED TO support file versions other than 1.
+	Restrictions:
+		- We HAVE TO provide a way to relax iso restrictions related to 
+		  filenames, allowing:
+			- Higher filename length, up to 37 chars (ECMA-119 7.5.1/7.6.3)
+			- Omit version number (ECMA-119 7.5.1)
+			- Directory hierarchy deeper than 8 levels / 255 path length
+			  (ECMA-119 6.8.2.1)
+			- More characters in filenames, not only d-characters
+
+
+2.2.2 Reading
+-------------
+
+	General
+		- We HAVE TO support the reading of iso images
+		- We DON'T NEED TO support reading of features we don't support in
+		  creation (see 2.2.1 above)
+		- We HAVE TO support reading arbitray file contents inside image
+
+2.2.3 Modification/growing
+--------------------------
+
+	General
+		- We HAVE TO support creation of new images from the contents of 
+		  an existing image
+		- We HAVE TO support multissession images
+		- We HAVE TO support growing of images 
+
+===============================================================================
+
+2.2 Rock Ridge
+--------------
+
+- We HAVE TO support ALL Rock Ridge features, with these exceptions:
+	- We DON'T NEED TO support SF System User Entry (RRIP 4.1.7), used to
+	  encode sparse files.
+	- We MIGHT support BACKUP timestamp (RRIP 4.1.6)
+- We HAVE TO support any charset in RR filenames, and not only POSIX portable
+  filename character set (RRIP 3.4.1). Namely, UTF-8 SHOULD BE the default for
+  RR filenames.
+- We MIGHT support Linux specific ZF extension, to allow transparent 
+  compression.
+
+===============================================================================
+
+2.3 Joliet
+----------
+
+- We HAVE TO support ALL Joliet features, with these exceptions:
+	- We DON'T KNOW what to do with UCS-2 conformance level 1 and 2 (scape
+      sequences '%\@' and '%\C'). What's this???????
+	- We DON'T KNOW what to do with CD-XA extensions.
+
+
+===============================================================================
+
+2.4 El-Torito
+-------------
+
+- We HAVE TO El-Torito standard with a single boot image.
+- We MAY support multiple boot images and boot entry selection.
+	- El Torito standard is not very clear about how to do that.
+- We HAVE TO support both emulation and not emulation mode.
+- We HAVE TO support 80x86 platform. We MAY support Power PC and Mac platforms.
+- We HAVE TO provide improved support for isolinux boot images, namely patching
+  features.
+- We HAVE TO support El-Torito in ms images.
+
+
+===============================================================================
+
+2.5 UDF
+-------
+
+
+
+===============================================================================
+
+2.6 HFS/HFS+
+------------
+
+
+
+
+
+===============================================================================
+
+2.7 Others
+----------
+
+- We HAVE TO support sorting of file contents on image
+- We HAVE TO support inode caching to prevent the same file to be written 
+  several times into the image
+- We DON'T NEED TO support TRANS.TBL files
+- We DON'T NEED TO support padding of images
+	- Padding should be part of the burning process
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,193 @@
+USE CASES FOR NG LIBISOFS
+=========================
+
+3.1 General Operations
+======================
+
+3.1.1 Creation of a new image
+-----------------------------
+
+Desc: Creation of a new ISO image from files on the local filesystem
+Phases:
+	- User creates a new image context
+	- User get the root (empty) of the image
+	- User adds files to the image root (see 3.2.)
+	- User sets the options for the the new image (extension to use...)
+	- User gets a burn_source to write the image.
+	- The burn_source can be used by libburn to write the new image.
+
+3.1.2 Image growing (multisession)
+----------------------------------
+
+Desc: An existing image can be grown with new files. New content is added
+      incrementally. Suitable for multisession. Growing support for
+      overwritteable media.
+Phases:
+	- Uses reads an existing image to get the image context.
+	- User get the root of the image
+	- User modifies the image tree (see 3.2.)
+	- User sets the options for the the new image (extension to use...)
+	  A required option will be the nwa for the image.
+	  Optionally it can pass a pointer to a 64K buffer, that will be filled
+	  with suitable volume descriptors to be used with overwrieable media.
+	- User gets a burn_source to write the image.
+	- The burn_source can be used by libburn to write an image that should be
+	  appended to the previous image.
+
+
+3.1.3 Image modification
+------------------------
+
+Desc: Creation of a new image from the contents of a previous image.
+Phases:
+	- Uses reads an existing image to get the image context.
+	- User get the root of the image
+	- User modifies the image tree (see 3.2.)
+	- User sets the options for the the new image (extension to use...)
+	- User gets a burn_source to write the image.
+	- The burn_source can be used by libburn to write the image to another
+	  device or file.
+
+3.2 Tree operations
+===================
+
+3.2.1 Addition of contents
+--------------------------
+
+	All addition operations take a parent dir. The functions check that the
+	node name is unique among all children. Image context options determine
+	what to do if a file with such name already exist.
+
+	3.2.1.1 Directories
+	--------------------
+		- Creation of new directories in image, given a parent dir. and a name.
+		  Attributes are initialized to default values
+		- Addition of a dir from the filesystem, given a parent. 
+		  Dir contents are not added. Name and other attributes taken from 
+		  the dir on filesystem
+		- Recursive addition of a dir, given a parent. Directory contents are
+		  recursivelly added to image.
+
+	3.2.1.2 Regular files
+	----------------------
+		- Addition of a local filesystem file. Name, attributes and contents to
+		  be written taken from the filesystem file.
+		- Addition of files from the previous image. Files are automatically
+		  added to the tree when the image is read. Name and attrbs taken from
+		  previous image. When the image has no RR extensions, unavailable atts
+		  are initialized to default values. The contents are only written to
+		  img if we choose image modification.
+		- Addition of filtered files. Name and atts taken from the local 
+		  filesystem. A filter (see 3.3) is applied to the file contents before
+		  written to image.
+		- Addition of splitted files. Like local filesystem files, but the file
+		  is splitted in several files on a given size. Suitable for big (> 2GB)
+		  files. Name of the splitted files automatically generated.
+
+	3.2.1.3 Symbolic links
+	----------------------
+
+		Simbolic links are only written to image if RR extensions are enabled.
+
+		- Addition of a simbolic link from local filesystem. Name, atts and 
+		  dest of a path are taken from the simbolic link.
+		- Addition of new link on image to a path. Name and dest specified, 
+		  the destination is specified as a path. Attributes initialized to
+		  default values.
+		- Addition of new link on image to another node. Name and dest 
+		  specified, the dest is set to a node previously added to image.
+		  When written, the destination path is computed as the relative path
+		  from the link to the destination node. Attributes initialized to
+		  default values.
+
+	3.2.1.4 Special files (block devices, fifos...)
+	-----------------------------------------------
+
+		Special files are only written to image if RR extensions are enabled.
+
+		- Addition of special files from filesystem.
+		- Creation of new special files on image.
+		  
+
+3.2.2 Modification of contents
+------------------------------
+
+	3.2.2.1 Deletion of nodes
+	-------------------------
+
+		- Any node can be deleted. When a dir is remove, all its contents
+		  are also removed.
+
+	3.2.2.2 Move
+	------------
+
+		- Any node can be move to another dir..
+
+	3.2.2.3 Rename
+	--------------
+
+		- You can change the name of any node
+
+	3.2.2.4 Change of POSIX attributes
+	----------------------------------
+
+		- Following POSIX atts can be changed: owner (uid/gid), permissions,
+		  timestamps.
+
+3.2.3 Bootable information
+--------------------------
+
+	- Addition of a boot image to a volume. 
+		- In most cases, the catalog and the boot image itself is added to the
+		  iso tree. 
+		- Alternatively, user can select to add a hidden images, i.e., images 
+		  that don't appear in the iso tree.
+	- Modification of boot image attributes:
+		- bootable flag
+		- load segment
+		- load size
+	- Automatic patching of isolinux images. User needs to set whether to apply
+	  this.
+	- Reading of El-Torito info from multisession images. Modification of its
+	  attributes.
+	- Removing of El-Torito images
+
+
+3.2.4 Other operations
+----------------------
+
+	3.2.4.1 Set file sort weight 
+	-----------------------------
+
+		- Any file can have a sort weight, that will determine the order in
+		  which the files are written to image
+
+	3.2.4.2 Hidding of nodes
+	------------------------
+		
+		- Files can be hidden in the RR or Joliet tree
+
+
+3.3 Filters
+===========
+
+	[TODO]
+
+	Support for:
+		- compression filter
+		- encryption filter
+		- external process filter
+
+	
+
+
+
+
+
+
+
+
+
+
+
+

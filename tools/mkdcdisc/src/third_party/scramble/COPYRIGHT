@@ -1,0 +1,22 @@
+Original author: Marcus Comstedt
+
+Obtained from: https://mc.pp.se/dc/files/scramble.c
+               The same file is carried by KallistiOS under utils/scramble/,
+               imported in May 2014 and unmodified since.
+
+The original scramble.c carries no copyright notice and no license text, and
+no formal grant accompanies it on the author's site, whose only statement on
+the matter is:
+
+    "All information is presented as-is, and may be used at your own risk."
+
+mkdcdisc has described this code as public domain since the 2022 rewrite (see
+the header of scramble.cpp). That characterization originates in this project,
+not with the author, and has not been confirmed by him. It is recorded here so
+that anyone auditing the licensing of mkdcdisc's third-party code sees what is
+actually established, rather than inferring a formal dedication that does not
+appear to exist.
+
+Only the algorithm was taken: the scrambling of a Dreamcast boot binary is a
+requirement of the medium, and the code here is a C++ rewrite rather than a
+copy. See README.md for what differs from the original.

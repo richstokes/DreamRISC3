@@ -1,0 +1,58 @@
+===============================================================================
+                          ISO-9660 Level 3 Cookbook
+===============================================================================
+
+Creation date: 2008-Aug-17
+Author: Vreixo Formoso
+_______________________________________________________________________________
+
+Contents:
+---------
+
+1. References
+2. General
+3. OS Support
+4. Implementation
+
+
+-------------------------------------------------------------------------------
+1. References:
+
+ECMA-119 "Volume and File Structure of CDROM for Information Interchange"
+
+
+-------------------------------------------------------------------------------
+2. General
+
+In ECMA-119 standard, the size of a file section cannot be bigger than 4GB - 1, 
+because the Data Length field of the Directory Record is just 32 bits (9.1.4).
+
+However, "each file shall consist of one or more File Sections" (6.5.1), and
+that way we can store files greater than 4GB in a ECMA-119 image. Such image, 
+with multiple File Sections, is only supported at Level 3 (10.3), as Level 2
+(10.2) states that "each file shall consist of only one File Section".
+
+On disc, each file section is stored in a Extent (6.4.2), i.e. a set of 
+contiguous Logical Blocks.
+
+
+-------------------------------------------------------------------------------
+3. OS Support
+
+Wikipedia states that "Microsoft Windows XP supports this, while Mac OS X 
+(as of 10.4.8) does not handle this case properly. In the case of Mac OS X, 
+the driver appears not to support file fragmentation at all (i.e. it only 
+supports ISO 9660 Level 2 but not Level 3). Linux supports multiple extents. 
+FreeBSD only shows and reads the last extent of a multi-extent file."
+
+-------------------------------------------------------------------------------
+4. Implementation
+
+Each File Section will have its own Directory Record (6.5.1). So, for files 
+greater than 4 GB, we need to store several directory records, that will have
+the same File Identifier, and stored in the order of the File Sections they
+refer (9.3).
+
+All but the last Directory Record must have the Multi-Extent flag set (9.1.6)
+
+

@@ -1,0 +1,80 @@
+This directory does not have a single license. Two distinct bodies of code sit
+in it, and they must not be confused.
+
+
+1. The EDC/ECC encoder -- CDDL 1.0, NOT MIT
+-------------------------------------------
+
+    edc_ecc.c, ecc.h, edc.h
+    crctable.out, encoder_tables, l2sq_table, scramble_table
+        (these four are #included into edc_ecc.c, not compiled separately)
+
+    Copyright 1998-2002,2008 Heiko Eissfeldt <heiko@colossus.escape.de>
+    Copyright 2002-2013 Joerg Schilling
+
+README is upstream's as well -- its description of the library, vendored
+unchanged alongside the code. Unlike the seven files above it carries no notice
+of any kind, neither a copyright line nor a CDDL HEADER, so it is listed here
+for provenance rather than as Covered Code.
+
+Taken from the libedc of schilytools, the successor to cdrtools; see
+git_info.json for the revision and README.md for the per-file versions. Each of
+these files carries a CDDL HEADER stating that its contents are subject to the
+terms of the Common Development and Distribution License, Version 1.0 only --
+not the MIT license the rest of mkdcdisc is under (see LICENSE at the root of
+this repository). edc.h and edc_ecc.c additionally carry the sentence "This file
+contains protected intellectual property."
+
+Those same headers require that the License file, CDDL.Schily.txt, be included
+in this distribution and referenced from each file:
+
+    "When distributing Covered Code, include this CDDL HEADER in each file
+     and include the License file CDDL.Schily.txt from this distribution."
+
+It is here, alongside this file, taken from the schilytools distribution. Note it
+is Schilling's own copy rather than a generic CDDL 1.0: it closes with a notice
+under section 9 of the license placing it under the laws of Germany and the
+jurisdiction of the courts of Berlin. The CDDL HEADERs in the files are intact.
+(Neither this repository nor img4dc before it carried the license text until
+2026-08-08.)
+
+All eight are byte-identical to upstream, so there are no Modifications in the
+CDDL's sense to account for, and every notice they carry is intact. What used to
+be patched into them now lives in schily/ and in meson.build instead -- see
+README.md. (This was not true before 2026-08-08: the earlier copy was libedc
+1.22 with local edits, one of which had removed the embedded sccsid[] copyright
+string.)
+
+
+2. Everything that makes it build here -- MIT, like the rest of mkdcdisc
+-----------------------------------------------------------------------
+
+    libedc.h              Copyright (C) 2006 Mickaël Cardoso (SiZiOUS)
+    schily/*.h            Copyright (C) 2026 Simulant and contributors
+
+libedc.h was written for img4dc, of which mkdcdisc is the successor. img4dc as a
+whole was released under the GPLv3; it is relicensed under MIT here by its
+author, who holds the copyright and is free to do so -- the GPLv3 bound whoever
+received img4dc under it, not the author himself.
+
+The schily/ headers are new, written for mkdcdisc in 2026. They stand in for
+the schilytools build environment that edc_ecc.c expects, and they replace
+patch.h/patch.c -- also by SiZiOUS, 2006, and also MIT here -- which did the
+same job by being #included into the vendored sources. Those two files were
+dropped on 2026-08-08 when the library was updated to 1.31, since keeping the
+vendored files untouched required moving that work outside them.
+
+A libedc.c by the same author was dropped at the same time: its
+edc_encode_sector() wrapper had never been called, and could not have served the
+GD-ROM writer in any case, since it hard-coded the Mode 2 Form 1 sector type.
+
+Nothing in section 2 comes from cdrtools or schilytools, and none of it is
+covered by the CDDL notices of section 1. The file-level evidence agrees: every
+one of the seven upstream *source* files carries an SCCS header of the form
+"@(#)name version date Copyright ...", and none of these does. (img4dc's own readme.txt is
+no help at this granularity -- "Each source code was written by SiZiOUS [...]
+except the 'libedc' library of course" is a blanket statement about the ripped
+directory, not a file-by-file inventory, as the now-retired patch.h sitting in
+that same directory and crediting him showed.)
+
+See README.md for what this library exposes and what of it is actually reached.

@@ -1,0 +1,20 @@
+# Shell scripts: always use LF line endings, even on Windows
+*.sh text eol=lf
+
+# Generated C-array includes (see tools/regen-includes.sh): pin to LF so the
+# `regen-includes` target reproduces them byte-for-byte regardless of a
+# contributor's core.autocrlf setting.
+*.include text eol=lf
+
+# Embedded binary assets: never end-of-line convert or treat as text.
+*.BIN binary
+*.mr binary
+
+# What `tests/e2e/test_bootable_disc.cpp` builds its discs from: the prebuilt
+# Dreamcast executables, the CD-DA tracks as raw Red Book audio, and the
+# background image each disc root carries. A line-ending conversion would
+# quietly destroy any of them.
+tests/payloads/kos/kos.elf binary
+tests/payloads/katana/katana.bin binary
+*.da binary
+*.pvr binary

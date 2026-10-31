@@ -1,0 +1,313 @@
+                 Arbitrary Attribute Interchange Protocol
+                Interchange of Persistent File Attributes
+
+                      Directory of Namespace "isofs."
+
+          by Thomas Schmitt    - mailto:scdbackup@gmx.net
+          Libburnia project    - mailto:bug-xorriso@gnu.org
+
+
+The following names are defined for AAIP namespace "isofs." as mentioned in
+specification of AAIP. Unless explicitly stated otherwise, numbers with
+names like *_LEN are 8 bit unsigned integers, those with *_BYTES are 32 bit
+unsigned integers.
+
+-------------------------------------------------------------------------------
+
+Name:
+      isofs.ca
+
+Purpose:
+      Records the range of checksummed image data (START, END), the number
+      of checksum items (COUNT), the number of bytes in a single checksum item
+      (SIZE), and the name of the checksum algorithm (CHECKSUM_TYPE).
+      END is also the block address of the start of the checksum recording
+      area in the image.
+      See also isofs.cx .
+      This attribute shall be attached to the root directory entry
+      and be global for the whole image.
+
+Format of Value:
+      START_LEN | START_BYTES | END_LEN | END_BYTES |
+      COUNT_LEN | COUNT_BYTES | SIZE_LEN | SIZE_BYTES | CHECKSUM_TYPE
+      Each number is encoded as _LEN byte and _BYTES value string.
+      The _LEN fields comply to ISO 9660 Format section 7.1.1.
+      The byte strings START_BYTES, END_BYTES, COUNT_BYTES, SIZE_BYTES begin
+      with the most significant byte. Leading zero bytes are allowed.
+      CHECKSUM_TYPE consists of the bytes after
+      START_LEN + END_LEN + COUNT_LEN + SIZE_LEN + 4.
+      It shall be a string of printable characters without terminating 0-byte.
+      Type names shall be registered here.
+      For now there is:
+       "MD5"   128 bit message digest, see RFC 1321, see man md5sum 
+
+Example:
+      LBA range 32 to 1000000 , 520 checksums recorded, MD5 
+      {   1,  32,
+          3,  15,  66,  64,
+          2,   2,   8,
+          1,  16,
+        'M', 'D', '5' }
+      or
+      {   4,   0,   0,   0,  32,
+          4,   0,  15,  66,  64,
+          4,   0,   0,   2,   8,
+          1,  16,
+         'M', 'D', '5' }
+
+Registered:
+      16 Jul 2009 by Thomas Schmitt for libisofs.
+
+-------------------------------------------------------------------------------
+
+Name:
+      isofs.cs
+
+Purpose:
+      Records the name of the character set that was used as output character
+      set when writing the RRIP name tree of the ISO 9660 image. It shall be
+      suitable as parameter for function iconv_open(3).
+      This attribute shall be attached to the root directory entry and be
+      global for the whole image.
+
+Format of Value:
+      Shall hold the character set name without terminating 0-byte.
+
+Example:
+      { 'I', 'S', 'O', '-', '8', '8', '5', '9' , '-', '1' }
+
+Registered:
+      18 Mar 2009 by Thomas Schmitt for libisofs.
+
+-------------------------------------------------------------------------------
+
+Name:
+      isofs.cx
+
+Purpose:
+      Records the index of the file's checksum in the checksum area at the
+      end of the image. The byte address of the checksum is 
+       checksum_area_lba * 2048 + isofs.cx * checksum_size
+      Default checksum algorithm is MD5 with a size of 16 byte.
+      See also isofs.ca .
+
+Format of Value:
+      A byte string which begins with the most significant byte.
+
+Example:
+      Index 123456
+      {   1, 226,  64 }
+
+Registered:
+      16 Jul 2009 by Thomas Schmitt for libisofs.
+
+-------------------------------------------------------------------------------
+
+Name:
+      isofs.di
+
+Purpose:
+      Records .st_dev and .st_ino of struct stat of the file source in the
+      local filesystem. See man 2 stat.
+      Both values may be unsigned integers up to 255 bytes.
+
+Format of Value:
+      DEV_LEN | DEV_BYTES | INO_LEN | INO_BYTES
+      The _LEN fields comply to ISO 9660 Format section 7.1.1.
+      The byte strings begin with the most significant byte.
+
+Example:
+      Device number 2001, inode number 176343
+      {   2,   7, 209,
+          3,   2, 176, 215 } 
+
+Registered:
+      17 Feb 2009 by Thomas Schmitt for xorriso.
+
+-------------------------------------------------------------------------------
+
+Name:
+      isofs.fa
+
+Purpose:
+      Records the file attribute flags as of Linux program chattr(1) and
+      ioctl(FS_IOC_GETFLAGS) in <linux/fs.h> as bits in a byte string.
+      Known from Debian GNU/Linux 8 to 12 are:
+      bit0=  FS_SECRM_FL        's' zero blocks on deletion               +
+      bit1=  FS_UNRM_FL         'u' on delete prepare for undelete        +
+      bit2=  FS_COMPR_FL        'c' compress                              +
+      bit3=  FS_SYNC_FL         'S' synchronous write                     +
+      bit4=  FS_IMMUTABLE_FL    'i' immutable                             +*
+      bit5=  FS_APPEND_FL       'a' appending write only                  +*
+      bit6=  FS_NODUMP_FL       'd' dump(8) shall ignore this file        +
+      bit7=  FS_NOATIME_FL      'A' do not update atime                   +
+      bit8=  FS_DIRTY_FL        'Z' compressed dirty file
+      bit9=  FS_COMPRBLK_FL     (? one or more compressed clusters)
+      bit10= FS_NOCOMP_FL       'm' do not compress                       +
+      bit11= FS_ECOMPR_FL       'E' compression error (old)
+             FS_ENCRYPT_FL      'E' encrypted file (new)
+      bit12= FS_BTREE_FL        (? btree format dir)
+             FS_INDEX_FL        'I' hash-indexed directory
+      bit13= FS_IMAGIC_FL       (? AFS directory)
+      bit14= FS_JOURNAL_DATA_FL 'j' data journalling                      +*
+      bit15= FS_NOTAIL_FL       't' no tail-merging                       +
+      bit16= FS_DIRSYNC_FL      'D' synchronous directory updates         +/
+      bit17= FS_TOPDIR_FL       'T' top of directory hierarchy            +/
+      bit18= FS_HUGE_FILE_FL    ('h' huge file ? 'h' old, FS_HUGE_FILE_FL new)
+      bit19= FS_EXTENT_FL       'e' using extents
+      bit20= FS_DIRECTIO_FL     (? use direct i/o) (old)
+             FS_VERITY_FL       'V' fs-verity enabled (new)
+      bit21= FS_EA_INODE_FL     (? Inode used for large EA)
+      bit22= FS_EOFBLOCKS_FL    (? reserved for ext4)
+      bit23= FS_NOCOW_FL        'C' no copy on write                      +
+      bit25= FS_DAX_FL          'x' direct access                         +
+      bit28= FS_INLINE_DATA_FL  'N' data stored in inode
+      bit29= FS_PROJINHERIT_FL  'P' project hierarchy                     +/
+      bit30= FS_CASEFOLD_FL     'F' case-insensitive directory lookups    +/
+      bit31= FS_RESERVED_FL     (? reserved for ext2 lib)
+      Marks for supposed settability properties according to man chattr:
+      "+" means "settable".
+      "*" means "superuser power is needed".
+      "/" means "for directories only".
+
+Format of Value:
+      A byte string which begins with the most significant byte.
+
+Example:
+      (FS_SECRM_FL|FS_APPEND_FL|FS_NOCOMP_FL) = 0x421
+      {   4 ,  33 }
+
+Registered:
+      12 Jul 2024 by Thomas Schmitt for libisofs.
+
+-------------------------------------------------------------------------------
+
+Name:
+      isofs.hb
+
+Purpose:
+      Records the IsoHfsplusBlessings blessing of a IsoNode as defined
+      in libisofs.h. At image load time, this info may be converted back
+      into a relation between IsoImage and IsoNode so that it is available for
+      the HFS+ writer when a new ISO 9660 / HFS+ image gets produced.
+
+Format of Value:
+      BLESSING
+      This is a single byte out of {'p', 'i', 's', '9', 'x'} for
+      ISO_HFSPLUS_BLESS_PPC_BOOTDIR, ISO_HFSPLUS_BLESS_INTEL_BOOTFILE,
+      ISO_HFSPLUS_BLESS_SHOWFOLDER, ISO_HFSPLUS_BLESS_OS9_FOLDER,
+      ISO_HFSPLUS_BLESS_OSX_FOLDER.
+
+Example:
+      { 'p' }
+
+Registered:
+      07 Jun 2012 by Thomas Schmitt for xorriso.
+
+-------------------------------------------------------------------------------
+
+Name:
+      isofs.hx
+
+Purpose:
+      Records the iso_hfsplus_xinfo_data information as defined in libisofs.h.
+      At image load time, this info may be converted back into an xinfo
+      attachment for iso_hfsplus_xinfo_func so that it is available for
+      the HFS+ writer when a new ISO 9660 / HFS+ image gets produced.
+
+Format of Value:
+      VERSION_LEN | VERSION | CREATOR | TYPE
+      VERSION_LEN complies to ISO 9660 Format section 7.1.1.
+      The byte string VERSION begins with the most significant byte.
+      VERSION == 0 is the only one that is currently defined. It assures the
+      existence of 4 bytes CREATOR and 4 bytes TYPE.
+      Higher versions will keep these 8 bytes and possibly add new ones. 
+
+Example:
+      { 1, 0, 'Y', 'Y', 'D', 'N', 'T', 'E', 'X', 'T' }
+
+Registered:
+      07 Jun 2012 by Thomas Schmitt for xorriso.
+
+-------------------------------------------------------------------------------
+
+Name:
+      isofs.nt
+
+Purpose:
+      Records the name truncation mode and the truncation length for Rock Ridge
+      names. See iso_image_set_truncate_mode() in libisofs.h.
+      This attribute shall be attached to the root directory entry and be
+      global for the whole image.
+
+Format of Value:
+      MODE_LEN | MODE_BYTES | LENGTH_LEN | LENGTH_BYTES
+
+Example:
+      { 1, 1, 1, 255 }
+
+Registered:
+      24 Sep 2015 by Thomas Schmitt for libisofs.
+
+-------------------------------------------------------------------------------
+
+Name:
+      isofs.pi
+
+Purpose:
+      Records the project id for XFS-style quota management.
+      See man xfs_quota(8).
+      Missing isofs.pi is defaulted to project id 0.
+
+Format of Value:
+      A byte string which begins with the most significant byte.
+      Up to four bytes are permissible.
+
+Example:
+      Project id 258
+      { 1, 2 }
+
+Registered:
+      09 Oct 2024 by Thomas Schmitt for libisofs.
+
+-------------------------------------------------------------------------------
+
+Name:
+      isofs.st
+
+Purpose:
+      Records a time point at least 1 second before any nodes were added to a
+      freshly loaded or created ISO image. Nodes in the image which have
+      younger timestamps are suspect to have changed their content during
+      image production and might bear inconsistent content.
+      The RRIP timestamps have a blind second during which a change after
+      node registration would not be recognizable for incremental backups
+      which are based in "isofs.di" rather than on content comparison.
+      This attribute shall be attached to the root directory entry
+      and be global for the whole image.
+
+Format of Value:
+      Shall hold UTC seconds since 1970 as decimal number string without
+      terminating 0-byte.
+
+Example:
+      { '1', '2', '3', '8', '7', '4', '2', '2', '9', '6' }
+
+Registered:
+      03 Apr 2009 by Thomas Schmitt for xorriso.
+
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+
+This text is under
+Copyright (c) 2009 - 2024 Thomas Schmitt <scdbackup@gmx.net>
+It shall only be modified in sync with libisofs and other software which
+makes use of AAIP. Please mail change requests to mailing list
+<bug-xorriso@gnu.org> or to the copyright holder in private.
+Only if you cannot reach the copyright holder for at least one month it is
+permissible to modify this text under the same license as the affected
+copy of libisofs. Currently: GNU General Public License version 2 or later.
+If you do so, you commit yourself to taking reasonable effort to stay in
+sync with the other interested users of this text.
+

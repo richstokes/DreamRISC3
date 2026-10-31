@@ -19,6 +19,8 @@ RISC OS 3.11 running natively on the Sega Dreamcast, built on KallistiOS.
 
 You need your own RISC OS 3.11 ROM. It is never committed. Default location is `../arculator-mac/roms/riscos311`; override with `ROM_DIR`.
 
+Host tools: KallistiOS, Python 3, meson, ninja, pkg-config and libisofs (`brew install meson ninja pkg-config libisofs`). The disc-image tool mkdcdisc is vendored under [tools/mkdcdisc](tools/mkdcdisc/VENDOR.md) and built into `build/mkdcdisc/` on first run; set `MKDCDISC` to use another binary.
+
 ```bash
 scripts/build-dc.sh
 ```

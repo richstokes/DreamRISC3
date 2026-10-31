@@ -1,0 +1,13 @@
+/* mkdcdisc - Sega Dreamcast Disc Image Generator
+ *
+ * SPDX-License-Identifier: MIT
+ * Copyright (C) 2022-2026 Simulant and contributors
+ * (https://www.simulant.dev/) */
+
+#pragma once
+
+#define MKDCDISC_VERSION "@VERSION_STRING@"
+
+/* The same string the Windows version resource carries as LegalCopyright, so
+ * the two cannot drift apart; meson.build is where it is written. */
+#define MKDCDISC_COPYRIGHT "@COPYRIGHT_STRING@"

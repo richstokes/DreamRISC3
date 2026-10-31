@@ -1,0 +1,42 @@
+# mkdcdisc - Sega Dreamcast Disc Image Generator
+#
+# SPDX-License-Identifier: MIT
+# Copyright (C) 2022-2026 Simulant and contributors
+# (https://www.simulant.dev/)
+
+# Named meson_options.txt rather than meson.options, which meson only reads
+# from 1.1 onwards -- this name works with every version.
+
+# 'auto' (the default) keeps libpng entirely optional: found, PNG support is
+# compiled in; missing, the build still succeeds and mkdcdisc simply refuses
+# PNG logos. That is the right default for someone building locally, but it
+# also means a build that lost the dependency is indistinguishable from one
+# that never had it, which is how the CI shipped binaries with PNG support
+# silently compiled out. 'enabled' is there for exactly that: it makes a
+# missing libpng fail `meson setup` instead, and the CI build jobs pass it.
+# 'disabled' skips libpng altogether, whether it is installed or not.
+option(
+    'png',
+    type: 'feature',
+    value: 'auto',
+    description: 'PNG support for the bootstrap (IP.BIN) license-screen logo, via libpng'
+)
+
+# Off by default because the only test behind it builds a GD-ROM padded out to
+# the full physical disc: around 2.1 GiB on disk at its peak (a ~984 MiB filler
+# file in the staging directory and a ~1.10 GiB track file, both live at once)
+# and some ten seconds. That is not a price a local `meson test` should pay
+# without being asked, and on a runner with a small or memory-backed temp
+# directory it does not degrade, it fails.
+#
+# It is a build option rather than a test suite so that the default is off
+# everywhere, local and CI alike, and turning it on is one visible flag on
+# `meson setup` -- which the CI build jobs pass. A suite would still run by
+# default and would have to be excluded, one flag per job, in the opposite
+# direction.
+option(
+    'slow_tests',
+    type: 'boolean',
+    value: false,
+    description: 'Tests that need gigabytes of scratch disk, notably the padded GD-ROM build'
+)

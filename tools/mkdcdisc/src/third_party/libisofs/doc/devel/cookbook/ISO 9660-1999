@@ -1,0 +1,123 @@
+===============================================================================
+                    ISO/IEC 9660:1999 Cookbook
+===============================================================================
+
+Creation date: 2008-Jan-14
+Author: Vreixo Formoso
+_______________________________________________________________________________
+
+Contents:
+---------
+
+1. References
+2. General
+3. Features
+4. Implementation
+5. Known implementation bugs and specification ambiguities/problems
+
+
+-------------------------------------------------------------------------------
+1. References:
+
+Meanwhile this is specified in ECMA-119 4th Edition of 2019 by the description
+of the Enhanced Volume Descriptor.
+
+The old name "ISO 9660:1999" comes from:
+ISO/IEC DIS 9660:1999(E) "Information processing. Volume and file structure of
+                          CD­-ROM for Information Interchange"
+
+
+-------------------------------------------------------------------------------
+2. General
+
+ISO 9660:1999, also known as ISO-9660 version 2 is an update of the old 
+ISO 9660:1988 standard for writing data images for CD.
+
+In the same way Joliet does, it is based on a Secondary Volume Descriptor (that
+is called Enhanced Volume Descriptor), that provides a second tree where the
+new file information is recorded. 
+
+-------------------------------------------------------------------------------
+3. Features
+
+It makes some improvements with respect to ECMA-119, mainly related to relax
+the constraints imposed by its predecessor.
+
+- It removes the limit to the deep of the directory hierarchy (6.8.2.1). 
+However, it still keep a limit to the path length, of 255 characters as in
+ECMA-119.
+
+- File names don't need the version number (;1) anymore, and the "." and ";",
+used as SEPARATORS for extension and version number, have no special meaning
+now.
+
+- The file name max length is incremented to 207 bytes.
+
+- The file name is not restricted to d-characters. 
+
+-------------------------------------------------------------------------------
+4. Implementation
+
+ISO 9660:1999 is very similar to old ISO 9660:1988 (ECMA-119). It needs two
+tree hierarchies: one, identified by the Primary Volume Descriptor, is recorded
+in the same way that an ECMA-119 structure.
+
+The second structure is identified by a Enhanced Volume Descriptor (8.5). The
+structure is exactly like defined in ECMA-119, with the exceptions named above.
+
+Thus, to write an ISO 9660:1999:
+
+- First 16 blocks are set to 0.
+- Block 16 identifies a PVD (8.4), associated with a directory structure 
+written following ECMA-119.
+- It is needed a Enhanced Volume descriptor to describe the additional 
+structure. It is much like a SVD, with version number set to 2 to identify
+this new version.
+- We can also write boot records (El-Torito) and additional SVD (Joliet).
+- We write a Volume Descriptor Set Terminator (8.3)
+- We write directory structure and path tables (L and M) for both ECMA-119
+tree and enhanced tree. Path table record and directory record format is
+the same in both structures. However, ECMA-119 is constrained by the usual
+restrictions. 
+- And write the contents of the files.
+
+Interchange levels 1, 2 and 3 are also defined. For PVD tree, they have the
+same meaning as in ECMA-119. For EVD tree, in levels 1 and 2 files are 
+restricted to one file section (i.e., 4 GB filesize limit). In level 3 we can
+have more than one section per file. Level 1 does not impose other 
+restrictions than that in the EVD tree.
+
+It seems that both El-Torito and Joliet can coexist in a ISO 9660:1999 image.
+However, Joliet has no utility at all in this kind of images, as it has no
+benefit over ISO 9660:1999, and it is more restrictive in filename length.
+
+-------------------------------------------------------------------------------
+5. Known implementation bugs and specification ambiguities/problems
+
+- While the specification clearly states that the tree speficied by the Primary
+Volume Descriptor should remain compatible with ISO-9660 (ECMA-119), i.e., it 
+should be constrained by ECMA-119 restrictions, some image generation 
+applications out there just make both Primary and Enhanced Volume Descriptors 
+to point to the same directory structure. That is a specification violation, as
+for a) the directory hierarchy specified in the Primary Volume Descriptor 
+doesn't follow the restrictions specified in the specs, and b) the same 
+directories are part of two different hiearchies (6.8.3 "A directory shall not 
+be a part of more than one Directory Hierarchy.").
+Thus, we should keep two trees as we do with Joliet. Or are there strong 
+reasons against this?
+
+- It's not very clear what characters are allowed for files and dir names. For
+the tree identified in the Enhanced Volume Descriptor, it seems that a
+"sequence of characters rather than d-characters or d1-characters" is allowed.
+It also seems that the charset is determined by the escape sequence in the
+EVD. Anyway, leaving escape sequence to 0 and use any user-specified sequence
+(such as UTF-8) seems a good solution and is what many other applications do.
+Linux correctly mounts the images in this case.
+
+- It is not clear if RR extensions are allowed in the tree identified by the
+Enhanced Volume Descriptor. However, it seems not a good idea. With 207 bytes
+filenames and XA extensions, there is no place for RR entries in the directory
+records of the enhanced tree. In my opinion, RR extension should be attached to
+the ECMA-119 tree that must also be written to image.
+
+

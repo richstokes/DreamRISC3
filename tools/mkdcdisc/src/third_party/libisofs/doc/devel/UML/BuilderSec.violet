@@ -1,0 +1,821 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<java version="1.6.0" class="java.beans.XMLDecoder"> 
+ <object class="com.horstmann.violet.SequenceDiagramGraph"> 
+  <void method="addNode"> 
+   <object id="LifelineNode0" class="com.horstmann.violet.ImplicitParameterNode"> 
+    <void property="name"> 
+     <void property="text"> 
+      <string>fs:Filesystem</string> 
+     </void> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>160.0</double> 
+     <double>73.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="ActivationBarNode0" class="com.horstmann.violet.CallNode"> 
+    <void method="addChild"> 
+     <object id="LifelineNode1" class="com.horstmann.violet.ImplicitParameterNode"> 
+      <void property="name"> 
+       <void property="text"> 
+        <string>file:FileSource</string> 
+       </void> 
+      </void> 
+     </object> 
+    </void> 
+    <void property="implicitParameter"> 
+     <object idref="LifelineNode0"/> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>192.0</double> 
+     <double>209.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object idref="LifelineNode1"/> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>274.0</double> 
+     <double>202.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="LifelineNode2" class="com.horstmann.violet.ImplicitParameterNode"> 
+    <void property="name"> 
+     <void property="text"> 
+      <string>User</string> 
+     </void> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>34.86475730998367</double> 
+     <double>0.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="ActivationBarNode1" class="com.horstmann.violet.CallNode"> 
+    <void method="addChild"> 
+     <object idref="LifelineNode0"/> 
+    </void> 
+    <void method="addChild"> 
+     <object id="LifelineNode3" class="com.horstmann.violet.ImplicitParameterNode"> 
+      <void property="name"> 
+       <void property="text"> 
+        <string>b:TNBuilder</string> 
+       </void> 
+      </void> 
+     </object> 
+    </void> 
+    <void method="addChild"> 
+     <object idref="ActivationBarNode0"/> 
+    </void> 
+    <void method="addChild"> 
+     <object id="ActivationBarNode2" class="com.horstmann.violet.CallNode"> 
+      <void method="addChild"> 
+       <object id="ActivationBarNode3" class="com.horstmann.violet.CallNode"> 
+        <void method="addChild"> 
+         <object id="ActivationBarNode4" class="com.horstmann.violet.CallNode"> 
+          <void property="implicitParameter"> 
+           <object idref="LifelineNode1"/> 
+          </void> 
+         </object> 
+        </void> 
+        <void method="addChild"> 
+         <object id="LifelineNode4" class="com.horstmann.violet.ImplicitParameterNode"> 
+          <void property="name"> 
+           <void property="text"> 
+            <string>ftn:FileTN</string> 
+           </void> 
+          </void> 
+         </object> 
+        </void> 
+        <void method="addChild"> 
+         <object id="ActivationBarNode5" class="com.horstmann.violet.CallNode"> 
+          <void property="implicitParameter"> 
+           <object idref="LifelineNode4"/> 
+          </void> 
+         </object> 
+        </void> 
+        <void method="addChild"> 
+         <object id="LifelineNode5" class="com.horstmann.violet.ImplicitParameterNode"> 
+          <void property="name"> 
+           <void property="text"> 
+            <string>fs:FileStream</string> 
+           </void> 
+          </void> 
+         </object> 
+        </void> 
+        <void method="addChild"> 
+         <object id="ActivationBarNode6" class="com.horstmann.violet.CallNode"> 
+          <void property="implicitParameter"> 
+           <object idref="LifelineNode4"/> 
+          </void> 
+         </object> 
+        </void> 
+        <void property="implicitParameter"> 
+         <object idref="LifelineNode3"/> 
+        </void> 
+       </object> 
+      </void> 
+      <void property="implicitParameter"> 
+       <object id="LifelineNode6" class="com.horstmann.violet.ImplicitParameterNode"> 
+        <void property="name"> 
+         <void property="text"> 
+          <string>d:DirTreeNode</string> 
+         </void> 
+        </void> 
+       </object> 
+      </void> 
+     </object> 
+    </void> 
+    <void method="addChild"> 
+     <object id="ActivationBarNode7" class="com.horstmann.violet.CallNode"> 
+      <void property="implicitParameter"> 
+       <object idref="LifelineNode4"/> 
+      </void> 
+     </object> 
+    </void> 
+    <void property="implicitParameter"> 
+     <object idref="LifelineNode2"/> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>66.86475730998367</double> 
+     <double>80.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object idref="LifelineNode3"/> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>539.756828460011</double> 
+     <double>126.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object idref="LifelineNode6"/> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>651.0</double> 
+     <double>0.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object idref="ActivationBarNode2"/> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>683.0</double> 
+     <double>305.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object idref="ActivationBarNode3"/> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>571.756828460011</double> 
+     <double>328.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object idref="ActivationBarNode4"/> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>306.0</double> 
+     <double>351.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object idref="LifelineNode4"/> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>331.97135964975513</double> 
+     <double>374.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object idref="ActivationBarNode5"/> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>363.97135964975513</double> 
+     <double>457.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object idref="LifelineNode5"/> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>418.8259109283281</double> 
+     <double>480.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object idref="ActivationBarNode6"/> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>363.97135964975513</double> 
+     <double>563.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object class="com.horstmann.violet.NoteNode"> 
+    <void property="text"> 
+     <void property="text"> 
+      <string>1. User wants to add a file to a dir in the iso node</string> 
+     </void> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>143.89406091532933</double> 
+     <double>16.868736840587744</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="NoteNode0" class="com.horstmann.violet.NoteNode"> 
+    <void property="text"> 
+     <void property="text"> 
+      <string>2. It creates the source filesystem and the
+   custom builder</string> 
+     </void> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>317.51829970572646</double> 
+     <double>74.92004824517142</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="PointNode0" class="com.horstmann.violet.PointNode"> 
+    <void id="Rectangle2D$Double0" property="bounds"> 
+     <void method="setRect"> 
+      <double>570.819415201306</double> 
+      <double>142.7048538003265</double> 
+      <double>0.0</double> 
+      <double>0.0</double> 
+     </void> 
+    </void> 
+    <void property="bounds"> 
+     <object idref="Rectangle2D$Double0"/> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>570.819415201306</double> 
+     <double>142.7048538003265</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="PointNode1" class="com.horstmann.violet.PointNode"> 
+    <void id="Rectangle2D$Double1" property="bounds"> 
+     <void method="setRect"> 
+      <double>218.81410916050066</double> 
+      <double>114.16388304026121</double> 
+      <double>0.0</double> 
+      <double>0.0</double> 
+     </void> 
+    </void> 
+    <void property="bounds"> 
+     <object idref="Rectangle2D$Double1"/> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>218.81410916050066</double> 
+     <double>114.16388304026121</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="NoteNode1" class="com.horstmann.violet.NoteNode"> 
+    <void property="text"> 
+     <void property="text"> 
+      <string>3. It gets the file from the filesystem
+and add it to parent dir</string> 
+     </void> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>379.1320632384976</double> 
+     <double>217.4323774110454</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="PointNode2" class="com.horstmann.violet.PointNode"> 
+    <void id="Rectangle2D$Double2" property="bounds"> 
+     <void method="setRect"> 
+      <double>327.03195662574825</double> 
+      <double>218.46075295682857</double> 
+      <double>0.0</double> 
+      <double>0.0</double> 
+     </void> 
+    </void> 
+    <void property="bounds"> 
+     <object idref="Rectangle2D$Double2"/> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>327.03195662574825</double> 
+     <double>218.46075295682857</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="NoteNode2" class="com.horstmann.violet.NoteNode"> 
+    <void property="text"> 
+     <void property="text"> 
+      <string>4. The dir delegates in the builder.
+5. The builder stat&apos;s the source file. In
+    this example it&apos;s a reg. file</string> 
+     </void> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>767.038589176755</double> 
+     <double>206.92203801047344</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="PointNode3" class="com.horstmann.violet.PointNode"> 
+    <void id="Rectangle2D$Double3" property="bounds"> 
+     <void method="setRect"> 
+      <double>694.4969551615891</double> 
+      <double>312.7614712457156</double> 
+      <double>0.0</double> 
+      <double>0.0</double> 
+     </void> 
+    </void> 
+    <void property="bounds"> 
+     <object idref="Rectangle2D$Double3"/> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>694.4969551615891</double> 
+     <double>312.7614712457156</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="PointNode4" class="com.horstmann.violet.PointNode"> 
+    <void id="Rectangle2D$Double4" property="bounds"> 
+     <void method="setRect"> 
+      <double>314.9148790283507</double> 
+      <double>359.23720542189034</double> 
+      <double>0.0</double> 
+      <double>0.0</double> 
+     </void> 
+    </void> 
+    <void property="bounds"> 
+     <object idref="Rectangle2D$Double4"/> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>314.9148790283507</double> 
+     <double>359.23720542189034</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="NoteNode3" class="com.horstmann.violet.NoteNode"> 
+    <void property="text"> 
+     <void property="text"> 
+      <string>6. The conversion is not needed, so
+the builder just creates a FileTreeNode</string> 
+     </void> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>762.2817607167442</double> 
+     <double>335.3564064307673</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="PointNode5" class="com.horstmann.violet.PointNode"> 
+    <void id="Rectangle2D$Double5" property="bounds"> 
+     <void method="setRect"> 
+      <double>522.2869299335649</double> 
+      <double>399.9594286575042</double> 
+      <double>0.0</double> 
+      <double>0.0</double> 
+     </void> 
+    </void> 
+    <void property="bounds"> 
+     <object idref="Rectangle2D$Double5"/> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>522.2869299335649</double> 
+     <double>399.9594286575042</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="NoteNode4" class="com.horstmann.violet.NoteNode"> 
+    <void property="text"> 
+     <void property="text"> 
+      <string>7. Sets the attributes from source</string> 
+     </void> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>774.1738318667714</double> 
+     <double>413.8440760209469</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="NoteNode5" class="com.horstmann.violet.NoteNode"> 
+    <void property="text"> 
+     <void property="text"> 
+      <string>8 ...and a FileStream to read contents
+   from the FileSource</string> 
+     </void> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>762.2817607167442</double> 
+     <double>478.0612602310938</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="PointNode6" class="com.horstmann.violet.PointNode"> 
+    <void id="Rectangle2D$Double6" property="bounds"> 
+     <void method="setRect"> 
+      <double>534.9181953038541</double> 
+      <double>453.1845675071054</double> 
+      <double>0.0</double> 
+      <double>0.0</double> 
+     </void> 
+    </void> 
+    <void property="bounds"> 
+     <object idref="Rectangle2D$Double6"/> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>534.9181953038541</double> 
+     <double>453.1845675071054</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="PointNode7" class="com.horstmann.violet.PointNode"> 
+    <void id="Rectangle2D$Double7" property="bounds"> 
+     <void method="setRect"> 
+      <double>482.368075796364</double> 
+      <double>524.8261757327898</double> 
+      <double>0.0</double> 
+      <double>0.0</double> 
+     </void> 
+    </void> 
+    <void property="bounds"> 
+     <object idref="Rectangle2D$Double7"/> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>482.368075796364</double> 
+     <double>524.8261757327898</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="NoteNode6" class="com.horstmann.violet.NoteNode"> 
+    <void property="text"> 
+     <void property="text"> 
+      <string>9. Finally, the FileTreeNode is added to
+    the parent dir, and returned to the user</string> 
+     </void> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>757.5249322567332</double> 
+     <double>556.5489298212734</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="PointNode8" class="com.horstmann.violet.PointNode"> 
+    <void id="Rectangle2D$Double8" property="bounds"> 
+     <void method="setRect"> 
+      <double>689.7401267015781</double> 
+      <double>614.8200784564067</double> 
+      <double>0.0</double> 
+      <double>0.0</double> 
+     </void> 
+    </void> 
+    <void property="bounds"> 
+     <object idref="Rectangle2D$Double8"/> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>689.7401267015781</double> 
+     <double>614.8200784564067</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object idref="ActivationBarNode7"/> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>363.97135964975513</double> 
+     <double>656.0</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="NoteNode7" class="com.horstmann.violet.NoteNode"> 
+    <void property="text"> 
+     <void property="text"> 
+      <string>10. The user can change any attribute
+      on the FileTreeNode</string> 
+     </void> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>735.3910524340093</double> 
+     <double>659.0235200658623</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="addNode"> 
+   <object id="PointNode9" class="com.horstmann.violet.PointNode"> 
+    <void id="Rectangle2D$Double9" property="bounds"> 
+     <void method="setRect"> 
+      <double>373.3523804664971</double> 
+      <double>666.0945878777277</double> 
+      <double>0.0</double> 
+      <double>0.0</double> 
+     </void> 
+    </void> 
+    <void property="bounds"> 
+     <object idref="Rectangle2D$Double9"/> 
+    </void> 
+   </object> 
+   <object class="java.awt.geom.Point2D$Double"> 
+    <void method="setLocation"> 
+     <double>373.3523804664971</double> 
+     <double>666.0945878777277</double> 
+    </void> 
+   </object> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.CallEdge"> 
+    <void property="middleLabel"> 
+     <string>«create»</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode0"/> 
+   <object idref="LifelineNode1"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.CallEdge"> 
+    <void property="middleLabel"> 
+     <string>«create»</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode1"/> 
+   <object idref="LifelineNode0"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.ReturnEdge"> 
+    <void property="lineStyle"> 
+     <object class="com.horstmann.violet.LineStyle" field="SOLID"/> 
+    </void> 
+    <void property="middleLabel"> 
+     <string>file</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode0"/> 
+   <object idref="ActivationBarNode1"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.CallEdge"> 
+    <void property="middleLabel"> 
+     <string>add_file(file,b)</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode1"/> 
+   <object idref="ActivationBarNode2"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.CallEdge"> 
+    <void property="middleLabel"> 
+     <string>create_file(file)</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode2"/> 
+   <object idref="ActivationBarNode3"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.CallEdge"> 
+    <void property="middleLabel"> 
+     <string>lstat()</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode3"/> 
+   <object idref="ActivationBarNode4"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.ReturnEdge"> 
+    <void property="middleLabel"> 
+     <string>S_IFREG</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode4"/> 
+   <object idref="ActivationBarNode3"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.CallEdge"> 
+    <void property="middleLabel"> 
+     <string>«create»</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode3"/> 
+   <object idref="LifelineNode4"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.CallEdge"> 
+    <void property="middleLabel"> 
+     <string>set attributes</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode3"/> 
+   <object idref="ActivationBarNode5"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.ReturnEdge"/> 
+   <object idref="ActivationBarNode5"/> 
+   <object idref="ActivationBarNode3"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.ReturnEdge"> 
+    <void property="lineStyle"> 
+     <object class="com.horstmann.violet.LineStyle" field="SOLID"/> 
+    </void> 
+    <void property="middleLabel"> 
+     <string>ftn</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode3"/> 
+   <object idref="ActivationBarNode2"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.CallEdge"> 
+    <void property="middleLabel"> 
+     <string>«create»</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode3"/> 
+   <object idref="LifelineNode5"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.CallEdge"> 
+    <void property="middleLabel"> 
+     <string>set stream (fs)</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode3"/> 
+   <object idref="ActivationBarNode6"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.ReturnEdge"/> 
+   <object idref="ActivationBarNode6"/> 
+   <object idref="ActivationBarNode3"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.ReturnEdge"> 
+    <void property="lineStyle"> 
+     <object class="com.horstmann.violet.LineStyle" field="SOLID"/> 
+    </void> 
+    <void property="middleLabel"> 
+     <string>ftn</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode2"/> 
+   <object idref="ActivationBarNode1"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.CallEdge"> 
+    <void property="middleLabel"> 
+     <string>«create»</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode1"/> 
+   <object idref="LifelineNode3"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.CallEdge"> 
+    <void property="middleLabel"> 
+     <string>get(path)</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode1"/> 
+   <object idref="ActivationBarNode0"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.NoteEdge"/> 
+   <object idref="NoteNode0"/> 
+   <object idref="PointNode0"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.NoteEdge"/> 
+   <object idref="NoteNode0"/> 
+   <object idref="PointNode1"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.NoteEdge"/> 
+   <object idref="NoteNode1"/> 
+   <object idref="PointNode2"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.NoteEdge"/> 
+   <object idref="NoteNode2"/> 
+   <object idref="PointNode3"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.NoteEdge"/> 
+   <object idref="NoteNode2"/> 
+   <object idref="PointNode4"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.NoteEdge"/> 
+   <object idref="NoteNode3"/> 
+   <object idref="PointNode5"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.NoteEdge"/> 
+   <object idref="NoteNode4"/> 
+   <object idref="PointNode6"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.NoteEdge"/> 
+   <object idref="NoteNode5"/> 
+   <object idref="PointNode7"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.NoteEdge"/> 
+   <object idref="NoteNode6"/> 
+   <object idref="PointNode8"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.CallEdge"> 
+    <void property="middleLabel"> 
+     <string>set_permission()</string> 
+    </void> 
+   </object> 
+   <object idref="ActivationBarNode1"/> 
+   <object idref="ActivationBarNode7"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.ReturnEdge"/> 
+   <object idref="ActivationBarNode7"/> 
+   <object idref="ActivationBarNode1"/> 
+  </void> 
+  <void method="connect"> 
+   <object class="com.horstmann.violet.NoteEdge"/> 
+   <object idref="NoteNode7"/> 
+   <object idref="PointNode9"/> 
+  </void> 
+ </object> 
+</java> 

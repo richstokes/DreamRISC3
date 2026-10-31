@@ -1,0 +1,78 @@
+Everything in this directory except this file and README.md is makeip's, and is
+under makeip's license, not mkdcdisc's.
+
+
+The files, and what they are
+----------------------------
+
+    crc.cpp, crc.hpp      from makeip's crc.c
+    mr.cpp, mr.hpp        from makeip's mr.c
+
+    Copyright (C) 2000, 2001, 2002, 2019, 2020 The KOS Team and contributors.
+    BSD 2-Clause License -- see LICENSE, whose text is reproduced at the top of
+    each of the four files above, as clause 1 requires.
+
+These are transcriptions, not reimplementations: the code was copied from
+makeip and then adapted to C++, so the expression is upstream's and the
+copyright notice travels with it. That is the difference between this directory
+and ../scramble/, whose original carries no notice at all and which was rewritten
+rather than copied.
+
+mkdcdisc as a whole is MIT (see LICENSE at the root of this repository). MIT and
+the BSD 2-Clause License impose no conflicting conditions, and neither is
+copyleft, so nothing here changes what mkdcdisc may be distributed under. What it
+does add is clause 2: a binary distribution has to reproduce the notice above in
+its accompanying documentation, which is what THIRD-PARTY-NOTICES.md is for.
+
+
+Where it came from
+------------------
+
+makeip 2.0.1 (2026-01-20), as carried by KallistiOS under utils/makeip/:
+
+    https://github.com/KallistiOS/KallistiOS/tree/master/utils/makeip
+
+No revision hash is recorded, unlike ../libedc/ and ../libisofs/, because this
+was never a vendoring step: the code entered mkdcdisc directly, in commits
+c75fb6d (the CRC) and 6ea6ae9 (the PNG-to-MR conversion), both on 2026-08-02,
+and only moved here afterwards. There is no upstream drop to resynchronise
+against, and no local patch queue against one.
+
+makeip's own CREDITS file attributes it as follows. The two parts taken here have
+distinct origins:
+
+    the CRC          Marcus Comstedt (zeldin), from the initial makeip
+    the MR and PNG   Andrew Kieschnick (ADK/Napalm), from logotools, with later
+                     fixes by Hayden Kowalchuk (mrneo240)
+
+with the whole having been contributed to KallistiOS by Andress Antonio Barajas
+(BBHoodsta), improved by him, and refactored by Mickaël Cardoso (SiZiOUS) for
+the 2.0.0 release, which is where the file layout these two files were copied
+from comes from.
+
+SiZiOUS is also a mkdcdisc contributor, which is worth stating plainly so it is
+not mistaken for a licensing shortcut: makeip is a collective work with several
+authors, so -- unlike ../libedc/libedc.h, which he wrote alone and could and did
+relicense -- no single contributor is in a position to relicense it, and nobody
+has. It stays BSD 2-Clause here.
+
+
+Derived from makeip but NOT in this directory
+---------------------------------------------
+
+Three functions elsewhere in mkdcdisc do the same job as a makeip counterpart,
+and are noted here so that this directory is not read as the complete list. They
+were written against mkdcdisc's own types rather than copied, carry none of
+upstream's expression, and stay MIT where they are:
+
+    update_ipbin_crc()      src/ip_boot.cpp     cf. update_crc(), crc.c
+    is_valid_peripherals()  src/ip_boot.cpp     cf. _check_peripherals(), field.c
+    detect_image_format()   src/mr_image.cpp    cf. detect_file_type(), utils.c
+
+update_ipbin_crc() is the clearest of the three: upstream reaches into a 32K
+buffer at hard-coded offsets 0x40 and 0x20, while mkdcdisc addresses named
+fields of its own IPBin struct and asserts that the two the checksum spans are
+adjacent. What it shares with upstream is the layout of a Dreamcast boot header,
+which is a fact about the hardware.
+
+See README.md for what these files expose and how they are reached.

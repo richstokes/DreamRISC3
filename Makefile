@@ -3,7 +3,7 @@ GEN = build/gen
 HOSTOBJ = build/host
 TRACES = --trace trace/boot
 
-.PHONY: gen host dc cdi clean
+.PHONY: gen host dc cdi mkdcdisc clean
 
 gen:
 	python3 tools/armxlat.py $(ROM_DIR) $(GEN) $(TRACES) --seeds trace/seeds.txt --ram-words trace/ramwords.txt
@@ -58,6 +58,19 @@ dc: build/dreamrisc.elf
 
 build/dreamrisc.elf: $(XLAT_DC) $(DCOBJ)/mach.o $(DCOBJ)/main.o $(DCOBJ)/images.o
 	kos-cc -o $@ $^ -Wl,-Map,build/dreamrisc.map
+
+# Disc image tool, vendored under tools/mkdcdisc (see tools/mkdcdisc/VENDOR.md).
+# Built with the host compiler, so run this before sourcing the KOS environment.
+MKDCDISC_SRC = tools/mkdcdisc
+MKDCDISC_BUILD = build/mkdcdisc
+MKDCDISC_BIN = $(MKDCDISC_BUILD)/mkdcdisc
+
+mkdcdisc: $(MKDCDISC_BIN)
+
+$(MKDCDISC_BIN): $(MKDCDISC_SRC)/meson.build $(MKDCDISC_SRC)/meson_options.txt $(shell find $(MKDCDISC_SRC)/src -type f \( -name '*.c' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.include' -o -name '*.in' \))
+	@mkdir -p build
+	@[ -f $(MKDCDISC_BUILD)/build.ninja ] || meson setup $(MKDCDISC_BUILD) $(MKDCDISC_SRC)
+	meson compile -C $(MKDCDISC_BUILD)
 
 clean:
 	rm -rf build

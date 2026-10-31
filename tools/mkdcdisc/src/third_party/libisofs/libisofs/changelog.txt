@@ -1,0 +1,1482 @@
+------------------------------------------------------------------------------
+       libburnia-project.org / dev.lovelyhq.com    libisofs
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+                                  Changelog
+------------------------------------------------------------------------------
+
+13 Nov 2016  [8bf32d8] [1340]
+doc/susp_aaip_isofs_names.txt
+Prepared some of the documentation for move to dev.lovelyhq.com
+
+13 Nov 2016  [c51efce] [1341]
+libisofs/fs_image.c
+Bug fix: iso_read_opts_set_no_rockridge() did not prevent reading of root SUSP
+
+13 Nov 2016  [dc6cd94] [1342]
+libisofs/libisofs.h
+libisofs/eltorito.c
+libisofs/libisofs.ver
+New API calls el_torito_set_full_load(), el_torito_get_full_load()
+
+13 Nov 2016  [ed209e0] [1343]
+COPYRIGHT
+Mentioned Vladimir Serbinenko in libisofs copyright list
+
+13 Nov 2016  [2961bde] [1344]
+ChangeLog
++ libisofs/changelog.txt
+Updated change log
+
+23 Nov 2016  [01020ef] [1345]
+libisofs/eltorito.h
+Committed missing part of rev dc6cd94/1342
+
+23 Nov 2016  [8ec75ee] [1346]
+libisofs/fs_image.c
+libisofs/rockridge.h
+libisofs/rockridge_read.c
+Bug fix: Non-SUSP data in System Use Area prevented image loading if Rock Ridge was enabled. Thanks to Jonathan Dowland.
+
+25 Dec 2016  [76181d0] [1347]
+libisofs/ecma119.c
+Restricted volume size of PVD with non-zero partition offset to filesystem
+size even if the first PVD claims the whole output size
+
+25 Dec 2016  [afb10aa] [1348]
+libisofs/eltorito.c
+Claiming full output size in first PVD if partition offset is non-zero
+
+25 Dec 2016  [3043b5f] [1349]
+libisofs/fs_image.c
+Enabled recognition of partition offset of grub-mkrescue-sed.sh mode "gpt_appended"
+
+03 Jan 2017  [2152804] [1350]
+libisofs/system_area.c
+Bug fix: Protective MBR for GPT could emerge with boot flag set.
+
+24 Jan 2014  [5c1c5cd] [1351]
+libisofs/system_area.c
+Bug fix: Appended partitions of size >= 4 GiB led to abort with error message
+         "FATAL : ISO overwrite". Thanks to Sven Haardiek.
+
+24 Jan 2014  [094b3f7] [1352]
+libisofs/system_area.c
+Updated copyright year in system_area.c
+
+27 Feb 2014  [e66b9bf] [1353]
+libisofs/libisofs.h
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/system_area.c
+libisofs/libisofs.ver
+New API call iso_write_opts_set_iso_mbr_part_type()
+
+27 Feb 2014  [5600f3d] [1354]
+libisofs/system_area.c
+When deciding boot flag, consider MBR partition slot empty only if entirely 0
+
+19 Mar 2017  [86f6ffc] [1355]
+libisofs/system_area.c
+Let iso_mbr_part_type 0xee override ban on 0xee without GPT
+
+09 Apr 2017  [94e4bfb] [1356]
+libisofs/fs_image.c
+Adapted recognizing of partition offset to the changes of rev afb10aa / 1348
+
+10 Apr 2017  [0e7300b] [1357]
+doc/boot_sectors.txt
+Clarified meaning of MBR partition boot flag
+
+25 Apr 2017  [fb86970] [1358]
+libisofs/system_area.c
+Reacted on harmless compiler warning about uninitialized variable.
+
+03 Jun 2017  [d7737e3] []
+libisofs/fs_image.c
+Removed ban on reading El Torito platform ids other than 0 and 0xef
+
+29 Jun 2017  [6282bbc]
+libisofs/system_area.c
+Bug fix: Bit 15 of iso_write_opts_set_system_area did not work with generic MBR
+
+01 Jul 2017  [18ab601]
+libisofs/eltorito.c
+libisofs/system_area.c
+Let ISO size cover appended partitions if --protective-msdos-label or nonzero -partition_offset is given
+
+13 Aug 2017  [c6e4035]
+doc/boot_sectors.txt
+Added boot sector knowledge gained from Natalia Portillo
+
+13 Aug 2017  [e19a338]
+doc/boot_sectors.txt
+Re-added two empty lines which were lost by previous commit
+
+14 Aug 2014  [1e40ed3]
+libisofs/fs_image.c
+Bug fix: Keeping and patching of loaded boot images failed. Regression by version 1.4.4.
+
+14 Aug 2017  [280108d]
+ChangeLog
+libisofs/changelog.txt
+Updated change log
+
+17 Aug 2017  [860a91d]
+libisofs/libisofs.h
+libisofs/fs_image.c
+libisofs/messages.c
+Preventing NULL dereference if root directory bears a RRIP RE entry
+
+18 Aug 2017  [36c8800]
+libisofs/rockridge_read.c
+Preventing buffer underread with empty RRIP SL component.
+Debian bug 872475. Thanks Jakub Wilk and American Fuzzy Lop.
+
+18 Aug 2017  [16bde11]
+libisofs/fs_image.c
+Preventing memory leak caused by RRIP SL entry without PX entry that marks
+the file as symbolic link
+
+18 Aug 2017  [661b68c]
+libisofs/rockridge_read.c
+Preventing buffer overflow with AAIP AL entry of insufficient size.
+Debian bug 872545. Thanks Jakub Wilk and American Fuzzy Lop.
+
+19 Aug 2017  [91490d5]
+libisofs/libisofs.h
+libisofs/messages.c
+libisofs/rockridge_read.c
+Preventing use of zero sized SUSP CE entry which causes SIGSEGV.
+Debian bug 872590. Thanks Jakub Wilk and American Fuzzy Lop.
+
+19 Aug 2017  [31088d9]
+libisofs/rockridge_read.c
+Avoid to read blocks from start of CE area which do not belong to the given file
+
+19 Aug 2017  [2a64d89]
+libisofs/libisofs.h
+libisofs/rockridge.h
+libisofs/fs_image.c
+libisofs/rockridge_read.c
+libisofs/messages.c
+Refuse to read CE data blocks from after the end of ISO filesystem
+
+21 Aug 2017  [a7152f5]
+libisofs/fs_image.c
+Correcting previous commit for supporting multi-session
+
+21 Aug 2017  [78b0a7b]
+libisofs/fs_image.c
+Disallowed RRIP CL chaining in order to break any endless loops.
+Debian bug 872761. Thanks Jakub Wilk and American Fuzzy Lop.
+
+21 Aug 2017  [e599a57]
+libisofs/fs_image.c
+Closed a memory leak about RRIP CL following
+
+24 Aug 2017  [cace41e]
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/system_area.c
+Enabled partition intervals with source "imported_iso" with ISO growing
+
+26 Aug 2017  [028f927]
+libisofs/libisofs.h
+libisofs/ecma119.c
+libisofs/system_area.c
+libisofs/messages.c
+Throw error if imported_iso interval would be overwritten by multi-session
+
+09 Sep 2017  [4e5a54c]
+libisofs/fs_image.c
+Swapped at recognition time the precendence of MBR properties "isohybrid"
+and "protective-msdos-label"
+
+12 Sep 2017  [7234425]
+ChangeLog
+Updated change log
+
+12 Sep 2017  [dfc6de9]
+configure.ac
+libisofs/libisofs.h
+Version leap to 1.4.8.
+
+12 Sep 2017  [bdfd4c4]
+libisofs/changelog.txt
+Updated change log
+
+------------------------------------ release - libisofs-1.4.8 - 12 Sep 2017
+* Bug fix: iso_read_opts_set_no_rockridge() did not prevent reading of root SUSP
+* Bug fix: Non-SUSP data in System Use Area prevented image loading if
+           Rock Ridge was enabled. Thanks to Jonathan Dowland.
+* Bug fix: Protective MBR for GPT could emerge with boot flag set.
+* Bug fix: Appended partitions of size >= 4 GiB led to abort with error message
+           "FATAL : ISO overwrite". Thanks to Sven Haardiek.
+* Bug fix: Bit 15 of iso_write_opts_set_system_area did not work with
+           generic MBR.
+* Bug fix: Keeping and patching of loaded boot images failed.
+           Regression by version 1.4.4.
+* Bug fix: Program crashes by intentionally wrong ISO image input.
+           Found by American Fuzzy Lop and Jakub Wilk.
+           Debian bug reports: 872372, 872475, 872545, 872590, 872761.
+* New API calls el_torito_set_full_load(), el_torito_get_full_load().
+* New API call iso_write_opts_set_iso_mbr_part_type().
+
+
+12 Sep 2017  [48ee49a]
+configure.ac
+libisofs/libisofs.h
+Version leap to 1.4.9
+
+12 Sep 2017  [ce831f1]
+ChangeLog
+libisofs/changelog.txt
+Updated change log
+
+15 Sep 2017  [34e3586]
+libisofs/node.c
+Silenced harmless compiler warning -Wimplicit-fallthrough
+
+16 Sep 2017  [874dc16]
+libisofs/hfsplus.c
+Fixed a message typo found by lintian
+
+22 Sep 2017  [53b2d6d]
+libisofs/hfsplus_classes.c
+Bug fix: Reading beyond array end for HFS+ production caused SIGSEGV with
+         FreeBSD 11 CLANG -O2. Thanks ASX of GhostBSD.
+
+22 Sep 2017  [79baab3]
+libisofs/hfsplus_classes.c
+Fixed a harmless lapse with static array initialization
+
+07 Oct 2017  [7d45c88]
+libisofs/libisofs.h
+libisofs/image.h
+libisofs/image.c
+libisofs/builder.c
+libisofs/fs_local.c
+libisofs/libisofs.ver
+New API call iso_image_get_ignore_aclea(),
+new iso_image_set_ignore_aclea() and iso_file_source_get_aa_string() flag bit3
+to import all xattr namespaces
+
+23 Oct 2017  [4b031b5]
+libisofs/libisofs.h
+libisofs/image.h
+libisofs/image.c
+libisofs/fs_local.c
+libisofs/builder.c
+libisofs/aaip_0_2.h
+libisofs/aaip_0_2.c
+libisofs/aaip-os-linux.c
+libisofs/aaip-os-freebsd.c
+libisofs/aaip-os-dummy.c
+libisofs/libisofs.ver
+New flag bit7 with iso_local_set_attrs() to avoid unnecessary write attempts.
+New return value 2 of IsoFileSource.get_aa_string() and iso_local_get_attrs().
+New API calls iso_image_was_blind_attrs(), iso_local_set_attrs_errno().
+
+23 Oct 2017  [633b4d5]
+doc/boot_sectors.txt
+Updated project mail addresses 
+
+31 Oct 2017  [1da3b17]
+libisofs/aaip-os-linux.c
+Changed a comment in Linux OS adapter
+
+31 Oct 2017  [580b154]
+libisofs/node.c
+Adapted iso_node_merge_xattr to handling of all namespaces
+
+22 Nov 2017  [a936409]
+libisofs/system_area.c
+Fixed failure to compile with experimental Libisofs_appended_partitions_inlinE
+
+30 Mar 2018  [615dc7e]
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/system_area.c
+Bug fix: Add-on sessions with partition offset claimed too many blocks as size.
+         Regression of version 1.4.8.
+
+31 Mar 2018  [ad843f1]
+libisofs/joliet.c
+Bug fix: Long Joliet names without dot were mangled with one character too many
+
+31 Mar 2018  [3106121]
+libisofs/joliet.c
+Bug fix: Long Joliet names with leading dot were mangled one char too short
+
+01 May 2018  [c5a9cc5]
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/system_area.c
+Changed bug fix 615dc7e9978ea0ba1eed7b4b661fe4e9f6f2769e of Mar 30 13:51:21 2018 +0200
+
+18 May 2018  [848e039]
+configure.ac
+libisofs/aaip-os-linux.c
+Preferring Linux include file sys/xattr.h over attr/attr.h
+
+04 Jun 2018  [f39d4ee]
+libisofs/ecma119.h
+libisofs/system_area.h
+libisofs/ecma119.c
+libisofs/system_area.c
+Putting user defined padding after appended partitions
+
+10 Jun 2018  [69c8c54]
+libisofs/libisofs.h
+libisofs/messages.c
+libisofs/fs_image.c
+Improved message at image load time about hidden El Torito images for EFI
+
+15 Sep 2018  [d3c17d0]
+libisofs/libisofs.h
+Version leap to 1.5.0.
+
+15 Sep 2018  [e317a8d]
+ChangeLog
+libisofs/changelog.txt
+Updated change log
+
+16 Sep 2018  [066c6f6]
+libisofs/aaip-os-freebsd.c
+Fixed failure to build on NetBSD because of undeclared variable
+
+------------------------------------ release - libisofs-1.5.0 - 15 Sep 2018
+* New API call iso_image_get_ignore_aclea(),
+  new iso_image_set_ignore_aclea() and iso_file_source_get_aa_string()
+  flag bit3 to import all xattr namespaces
+* New API calls iso_image_was_blind_attrs(), iso_local_set_attrs_errno().
+* New flag bit7 with iso_local_set_attrs() to avoid unnecessary write attempts.
+* New return value 2 of IsoFileSource.get_aa_string() and iso_local_get_attrs().
+* Now putting user defined padding after appended partitions.
+* Bug fix: Add-on sessions with partition offset claimed too many blocks as
+           size. Regression of version 1.4.8.
+* Bug fix: Long Joliet names without dot were mangled with one character too
+           many. Long Joliet names with leading dot were mangled one char
+           too short.
+* Bug fix: Reading beyond array end for HFS+ production caused SIGSEGV with
+           FreeBSD 11 CLANG -O2. Thanks ASX of GhostBSD.
+
+16 Sep 2018  [31c4c26]
+configure.ac
+libisofs/libisofs.h
+Version leap to 1.5,1
+
+16 Sep 2018  [a63b16f]
+ChangeLog
+libisofs/changelog.txt
+Updated change log
+
+24 Sep 2018  [6a6343c]
+COPYRIGHT
+README
+Updated copyright dates in COPYING and README
+
+06 Oct 2018  [241b9ea]
+README
+Makefile.am
+acinclude.m4
+libisofs/make_isohybrid_mbr.c
+libisofs/aaip-os-dummy.c
+libisofs/aaip-os-freebsd.c
+libisofs/aaip-os-linux.c
+libisofs/aaip_0_2.h
+libisofs/aaip_0_2.c
+doc/susp_aaip_isofs_names.txt
+Corrected and updated copyright statements
+
+05 Nov 2018  [01415ae]
+libisofs/libisofs.h
+libisofs/eltorito.h
+libisofs/fs_image.c
+New report line with iso_image_report_el_torito() "El Torito hdsiz/512:"
+
+10 Jan 2019  [9626158]
+libisofs/system_area.c
+Bug fix: Appended GPT partitions were not covered by the protective MBR partition
+
+10 Jan 2019  [4064a7e]
+libisofs/ecma119.c
+libisofs/system_area.h
+libisofs/system_area.c
+Bug fix: Multi-session emulation spoiled GPT production "GPT partitions ... overlap". Regression towards 1.4.8
+
+15 Jan 2019  [a1e7500]
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/system_area.c
+Bug fix: Appending partitions 5 to 8 caused damaged ISO filesystems if not for SUN disk label
+
+15 Jan 2019  [e1097db]
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/system_area.c
+Changed interface of helper function iso_tell_max_part_range()
+
+18 Feb 2019  [aed8bda]
+libisofs/libisofs.h
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/system_area.c
+libisofs/libisofs.ver
+New API calls iso_write_opts_set_part_type_guid(), iso_write_opts_set_iso_type_guid()
+
+05 Apr 2019  [8fbc2fc]
+acinclude.m4
+Makefile.am
+Made libisofs ready for building out-of-source. Thanks Ross Burton.
+
+07 Apr 2019  [3aab1ca]
+configure.ac
+Disabled autotools macro AM_MAINTAINER_MODE on advise of Ross Burton.
+
+07 Apr 2019  [c62d9d7]
+Makefile.am
+libisofs/util.c
+Replaced inclusion of version numbers from autotools by those from libisofs.h
+
+18 Apr 2019  [4b21386]
+libisofs/system_area.c
+Bug fix: SIGSEGV happened if options bit 14 of iso_write_opts_set_system_area()
+         is set and no El Torito boot image is defined
+
+18 Apr 2019  [458ab43]
+libisofs/libisofs.h
+libisofs/libisofs.ver
+libisofs/ecma119.c
+libisofs/node.c
+libisofs/tree.c
+libisofs/eltorito.c
+libisofs/util.c
+New API call iso_nowtime()
+
+22 Apr 2019  [a5e2092]
+Makefile.am
+Putting doc/boot_sectors.txt into release tarball
+
+24 Jul 2019  [eb7dc40]
+doc/boot_sectors.txt
+Added Alpha to table of content of boot sectors description
+
+24 Jul 2019  [130b46c]
+libisofs/libisofs.h
+libisofs/node.c
+libisofs/aaip_0_2.c
+New flag bit2 of iso_node_set_acl_text() to be verbous about failures
+
+13 Aug 2019  [fe98b35]
+libisofs/eltorito.c
+Made sure that iso_image_get_bootcat() cannot return non-zero size with NULL content
+
+26 Oct 2019  [65c4dce]
+configure.ac
+libisofs/libisofs.h
+Version leap to 1.5.2.
+
+26 Oct 2019  [4d8a467]
+ChangeLog
+libisofs/changelog.txt
+Updated change log
+
+------------------------------------ release - libisofs-1.5.2 - 26 Oct 2019
+* New API calls iso_write_opts_set_part_type_guid(), 
+  iso_write_opts_set_iso_type_guid()
+* New API call iso_nowtime()
+* New flag bit2 of iso_node_set_acl_text() to be verbous about failures
+* Made libisofs ready for building out-of-source. Thanks Ross Burton.
+* Bug fix: Appended GPT partitions were not covered by the protective MBR 
+           partition
+* Bug fix: Multi-session emulation spoiled GPT production.
+           "GPT partitions ... overlap". Regression towards 1.4.8
+* Bug fix: Appending partitions 5 to 8 caused damaged ISO filesystems if not 
+           for SUN disk label
+* Bug fix: SIGSEGV happened if options bit 14 of
+           iso_write_opts_set_system_area() is set and no El Torito boot image
+           is defined
+
+27 Oct 2019  [fa43a5a]
+configure.ac
+libisofs/libisofs.h
+Version leap to 1.5.3
+
+27 Oct 2019  [560c116]
+ChangeLog
+libisofs/changelog.txt
+Updated change log
+
+28 Oct 2019  [dc3d82c]
+libisofs/libisofs.h
+libisofs/node.h
+libisofs/node.c
+libisofs/builder.h
+libisofs/tree.c
+libisofs/find.c
+libisofs/image.h
+libisofs/fs_local.c
+libisofs/fs_image.c
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/joliet.c
+libisofs/iso1999.c
+libisofs/eltorito.c
+libisofs/rockridge.h
+libisofs/rockridge.c
+libisofs/ecma119_tree.c
+libisofs/util_rbtree.c
+libisofs/system_area.h
+libisofs/system_area.c
+libisofs/make_isohybrid_mbr.c
+libisofs/buffer.h
+libisofs/buffer.c
+libisofs/md5.c
+libisofs/stream.h
+libisofs/util.h
+libisofs/util.c
+libisofs/libiso_msgs.h
+libisofs/messages.c
+libisofs/aaip_0_2.h
+libisofs/aaip_0_2.c
+libisofs/aaip-os-linux.c
+libisofs/aaip-os-freebsd.c
+doc/susp_aaip_2_0.txt
+doc/checksums.txt
+doc/boot_sectors.txt
+Fixed spelling errors found by fossies.org with codespell
+
+30 Oct 2019  [773be79]
+libisofs/libisofs.h
+libisofs/system_area.c
+libisofs/buffer.c
+libisofs/ecma119.h
+Fixed more spelling errors found by fossies.org with codespell
+
+24 Nov 2019  [c1d9639]
+configure.ac
+libisofs/libisofs.h
+Switched to usage of libjte-2.0.0
+
+26 Nov 2019  [ac24887]
+configure.ac
+Re-enabled variable LT_RELEASE in configure.ac. Disabling was unintentional.
+
+13 Jun 2020  [c84f6ae]
+libisofs/libisofs.h
+Removed a germanism from description of iso_image_get_session_md5
+
+13 Jun 2020  [6ca841e]
+libisofs/fs_local.c
+libisofs/fs_image.c
+Reacted on compiler warnings of Debian Sid
+
+13 Jun 2020  [69e332d]
+libisofs/libisofs.h
+libisofs/messages.c
+libisofs/hfsplus.c
+New error code ISO_HFSPLUS_TOO_MANY_FILES instead of ISO_MANGLE_TOO_MUCH_FILES
+
+07 Jul 2020  [gitlab 2384800] [gitea b0230b6]
+libisofs/system_area.c
+Changed strncpy() to memcpy() in order to please static analyzers
+
+07 Jul 2020  [gitlab 30a2e85] [gitea f962d0d]
+libisofs/system_area.c
+Bug fix: Big-Endian MIPS Volume Header boot file size was rounded up to full 2048. Thanks René Rebe.
+
+21 Sep 2020  [d297ce3]
+libisofs/util.c
+Prevented time rollover outside year intervals 1900-2155 and 1-9999
+
+14 Oct 2020  [b107443]
+libisofs/libisofs.h
+libisofs/libisofs.ver
+libisofs/fs_image.c
+libisofs/messages.c
+libisofs/node.h
+libisofs/node.c
+libisofs/rockridge.h
+libisofs/rockridge.c
+libisofs/rockridge_read.c
+libisofs/stream.h
+libisofs/stream.c
+libisofs/util.h
+libisofs/util.c
+libisofs/filters/zisofs.c
++ doc/zisofs2_format.txt
+Implemented production and reading of zisofs2 for files larger than 4 GiB - 1.
+New API call iso_stream_get_zisofs_par(). New struct iso_zisofs_ctrl version 2.
+
+15 Oct 2020  [f291e37]
+libisofs/filters/zisofs.c
+Fixed wrong start block pointer of zisofs2 compression
+
+17 Oct 2020  [2ca3b29]
+libisofs/libisofs.h
+libisofs/messages.c
+libisofs/filters/zisofs.c
+New iso_zisofs_ctrl parameter .block_number_target
+
+18 Oct 2020  [239ba69]
+libisofs/filters/zisofs.c
+libisofs/fs_image.c
+Accepting zisofs2 algorithms 2 to 5 for ZF by magic, but not for decompression
+
+22 Oct 2020  [cc2e0e3]
+libisofs/libisofs.h
+libisofs/filters/zisofs.c
+New iso_zisofs_ctrl parameters bpt_discard_file_blocks , bpt_discard_free_ratio
+
+25 Oct 2020  [80449f0]
+libisofs/libisofs.h
+libisofs/libisofs.ver
+libisofs/filters/zisofs.c
+libisofs/image.c
+New API calls iso_stream_zisofs_discard_bpt() and iso_image_zisofs_discard_bpt()
+
+26 Oct 2020  [d5ffecf]
+libisofs/filters/zisofs.c
+Silenced a compiler warning if zlib is not enabled
+
+27 Oct 2020  [dc61e7d]
+libisofs/libisofs.h
+libisofs/node.c
+New flag bits 8 to 15 in API call iso_node_zf_by_magic()
+
+29 Oct 2020  [2ac62f0]
+libisofs/filters/zisofs.c
+Fixed header size of ZF entries made for zisofs2 files compressed by libisofs
+
+29 Oct 2020  [46186e5]
+doc/zisofs2_format.txt
+Added Z2 System Use Entry Format to zisofs2 specs
+
+29 Oct 2020  [9605bbe]
+libisofs/libisofs.h
+libisofs/libisofs.ver
+libisofs/rockridge.c
+libisofs/fs_image.c
+libisofs/rockridge_read.c
+libisofs/filters/zisofs.c
+New API call iso_zisofs_ctrl_susp_z2()
+
+29 Oct 2020  [8d70c75]
+Makefile.am
+libisofs/rockridge.c
+libisofs/rockridge_read.c
+Added doc/zisofs2_format.txt to EXTRA_DIST
+
+29 Oct 2020  [b7a90c5]
+libisofs/libisofs.h
+Corrected description of new call iso_zisofs_ctrl_susp_z2()
+
+31 Oct 2020  [5a98a4c]
+libisofs/fs_image.c
+Corrected declaration of ziso_add_osiz_filter(). (Lapse in commit b107443)
+
+07 Nov 2020  [b068764]
+libisofs/eltorito.c
+Bug fix: El Torito production failed if no catalog name was given and the
+boot image path contains no slash
+
+07 Nov 2020  [ac9d553]
+libisofs/eltorito.c
+Fixed a new bug introduced with previous commit
+
+13 Nov 2020  [1d5566f]
+README
+Changed Public contact from libburn-hackers@pykix.org to bug-xorriso@gnu.org
+
+13 Nov 2020  [7e3b01b]
+libisofs/system_area.c
+Bug fix: Apple Partition Map entries wrote uninitialized data 
+
+13 Nov 2020  [daaee5e]
+libisofs/hfsplus.c 
+Fixed access to packed members of struct hfsplus_volheader.
+Thanks Felipe Franciosi.
+
+13 Nov 2020  [92af0c9]
+libisofs/system_area.c
+Adjusted fix 7e3b01b after learning that the bug stems from b0230b6 (unreleased)
+
+14 Nov 2020  [29cc5c8]
+libisofs/system_area.c
+Prevented writing of undesired bytes in make_sun_disk_label() (commit b0230b6)
+
+15 Nov 2020 [cece6fb]
+libisofs/ecma119.c
+libisofs/hfsplus.h
+libisofs/hfsplus.c
+libisofs/system_area.c
+Bug fix: Appended APM partitions without HFS+ production had start and size 1
+
+22 Nov 2020  [c068a19]
+libisofs/libisofs.h
+libisofs/libisofs.ver
+libisofs/fs_image.c
+New API call iso_read_opts_set_joliet_map(), new default joliet_map=stripped
+
+26 Nov 2020  [8f3ff65]
+libisofs/ecma119.c
+libisofs/system_area.h
+libisofs/system_area.c
+Corrected size of GPT protective MBR partition with multi-session emulation
+
+07 Dec 2020  [6241141]
+libisofs/libisofs.h
+libisofs/libisofs.ver
+libisofs/fs_image.c
+New API calls iso_read_image_features_tree_loaded() and
+iso_read_image_features_rr_loaded()
+
+07 Dec 2020  [2a20e93]
+libisofs/fs_image.c
+Small correction to commit 6241141
+
+30 Jan 2021  [4219bf4]
+configure.ac
+libisofs/libisofs.h
+Version leap to 1.5.4.
+
+30 Jan 2021  [2d1fec2]
+ChangeLog
+libisofs/changelog.txt
+Updated change log
+
+------------------------------------ release - libisofs-1.5.4 - 30 Jan 2021
+* Bug fix: Big-Endian MIPS Volume Header boot file size was rounded up to
+           full 2048. Thanks René Rebe.
+* Bug fix: El Torito production failed if no catalog path is given and the
+           first boot image path contains no slash
+* Bug fix: zisofs production was wrong on big-endian machines
+* Bug fix: Appended APM partitions without HFS+ production had start and size 1
+* Switched to usage of libjte-2.0.0
+* Implemented production and reading of zisofs2 for files larger than 4 GiB - 1.
+* New struct iso_zisofs_ctrl version 2
+* New API call iso_stream_get_zisofs_par()
+* New API call iso_stream_zisofs_discard_bpt()
+* New API call iso_image_zisofs_discard_bpt()
+* New flag bits 8 to 15 in API call iso_node_zf_by_magic()
+* New API call iso_zisofs_ctrl_susp_z2()
+* New API call iso_read_opts_set_joliet_map(), new default joliet_map=stripped
+* New API calls iso_read_image_features_tree_loaded() and
+  iso_read_image_features_rr_loaded()
+
+30 Jan 2021  [5add62b]
+configure.ac
+libisofs/libisofs.h
+Version leap to 1.5.5
+
+01 Feb 2021  [058f18d]
+libisofs/rockridge.c
+Bug fix: Large amounts of AAIP data or many long file names could cause with
+zisofs an unreadable filesystem after the warning "Calculated and written
+ECMA-119 tree end differ"
+
+03 Feb 2021  [98aea0c]
+libisofs/rockridge.c
+Heuristic fix for a new problem introduced by commit 058f18d
+
+07 Feb 2021  [release-1.5.4.branch: 408eb3f]
+libisofs/rockridge.c
+Bug fix: Large amounts of AAIP data or many long file names could cause with
+zisofs an unreadable filesystem after the warning "Calculated and written
+ECMA-119 tree end differ"
+
+07 Feb 2021  [release-1.5.4.branch: a7a9c29]
+ChangeLog
+libisofs/changelog.txt
+Updated change log
+
+------------------------------------ release - libisofs-1.5.4 - 07 Feb 2021
+* Bug fix: Large amounts of AAIP data or many long file names could cause with
+           zisofs an unreadable filesystem after the warning "Calculated and
+           written ECMA-119 tree end differ"
+
+28 Feb 2021  [7d248c4]
+libisofs/fs_image.c
+Ignore mad MBR partitions which extend outside of medium size
+
+28 Feb 2021  [9e38918]
+libisofs/rockridge.c
+Leave prediction of first CE gap to susp_*_to_ce() functions
+
+12 Mar 2021  [75499bc]
+libisofs/filters/zisofs.c
+Silenced a warning on 32 bit about value ISO_ZISOFS_V1_LIMIT too large for int
+
+25 May 2021  [1c4c04d]
+libisofs/libisofs.h
+libisofs/ecma119.c
+libisofs/system_area.c
+New iso_write_opts_set_system_area() option bits 16: GPT "Legacy BIOS bootable"
+and 17: GPT writable
+
+02 Sep 2021  [80a0691]
+configure.ac
+Removed unneeded configure.ac macro AC_C_BIGENDIAN
+
+28 Oct 2021  [3e61a61]
+README
+Updated URLs, build instructions, and copyright in README file
+
+22 Apr 2022  [da8e3e6]
+libisofs/fs_image.c
+Exempted MBR partitions of type 0xEE from being ignored due to wrong size
+
+23 Apr 2022  [99251ad]
+libisofs/system_area.c
+Avoid to overwrite the loaded MBR partition table just because partition offset is 16
+
+23 Apr 2022  [1d61b51]
+libisofs/system_area.c
+libisofs/make_isohybrid_mbr.c
+Bug fix: iso_write_opts_set_part_like_isohybrid() did not cause a MBR partition
+         table if the partitions are data files in the ISO rather than appended
+
+23 Apr 2022  [da00291]
+libisofs/make_isohybrid_mbr.c
+Let the original isohybrid GPT obey system_area() option bit 17: GPT writable
+
+26 Apr 2022  [2af1749]
+libisofs/fs_local.c
+libisofs/fs_image.c
+Bug fix: The lseek methods of IsoFileSource for local filesystem and loaded
+         ISO returned libisofs error codes as positive off_t numbers
+
+26 Apr 2022  [f457a4f]
+libisofs/stream.c
+Added missing stream type names to a diagnostic function
+
+26 Apr 2022  [011e2e8]
+libisofs/libisofs.h
+libisofs/tree.c
+libisofs/stream.c
+libisofs/fsource.h
+libisofs/fsource.c
+Allowed lseekable device files with iso_tree_add_new_cut_out_node(). Proof-of-concept by Ivan Shmakov.
+
+13 May 2022  [ad55ec7]
+libisofs/system_area.c
+libisofs/make_isohybrid_mbr.c
+Avoided automatic MBR partition type 0x00 with
+iso_write_opts_set_part_like_isohybrid() if partitions do not overlap
+
+30 May 2022  [c6cb7df]
+libisofs/tree.c
+libisofs/stream.c
+libisofs/fsource.h
+libisofs/fsource.c
+Widened the lseek capacity determination to SEEK_SET with wanted size
+
+20 Sep 2022  [9b7ccc9]
+libisofs/libisofs.h
+libisofs/aaip-os-linux.c
+Improved error messages in case of failing Linux-specific ACL or xattr functions
+
+20 Sep 2022  [83e5832]
+libisofs/libisofs.h
+libisofs/libisofs.ver
+libisofs/image.h
+libisofs/image.c
+libisofs/fs_image.c
+libisofs/tree.c
+libisofs/messages.c
+libisofs/util.h
+libisofs/util.c
+New API calls iso_assess_written_features(), iso_read_image_feature_named(),
+iso_read_image_features_text()
+
+07 Oct 2022  [71772ba]
+libisofs/fs_image.c
+Fixed assessment of omit_version_numbers and no_force_dots
+
+27 Oct 2022  [acb4bd1]
+libisofs/tree.c
+Bug fix: Freshly cloned data files from imported image were not marked as
+         imported 
+
+13 Dec 2022  [d35435b]
+libisofs/rockridge.c
+Bug fix: Size of further CE area was calculated wrong if its CE entry ended
+         exactly at a block boundary
+
+11 Jan 2023  [7109ba5]
+libisofs/rockridge_read.c
+Prevented endless CE loops when reading a very bad ISO fileystem
+
+22 Jan 2023  [bd41540]
+libisofs/libisofs.h
+libisofs/node.h
+libisofs/node.c
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/rockridge.h
+libisofs/rockridge.c
+libisofs/messages.c
+libisofs/libisofs.ver
+New API call iso_write_opts_set_max_ce_entries()
+
+14 Apr 2023  [cdc7f52]
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/joliet.c
+Reduced number of warnings about special files or symlinks in Joliet
+
+07 Jun 2023  [c2d17b1]
+configure.ac
+libisofs/libisofs.h
+Version leap to 1.5.6
+
+07 Jun 2023  [170318c]
+ChangeLog
+libisofs/changelog.txt
+Updated change log
+
+------------------------------------ release - libisofs-1.5.6 - 07 Jun 2023
+* New iso_write_opts_set_system_area() option bits 16:
+  GPT "Legacy BIOS bootable" and 17: GPT writable
+* New API calls iso_assess_written_features(), iso_read_image_feature_named(),
+  iso_read_image_features_text()
+* Allowed lseekable device files with iso_tree_add_new_cut_out_node().
+  Proof-of-concept by Ivan Shmakov.
+* New API call iso_write_opts_set_max_ce_entries()
+* Bug fix: iso_write_opts_set_part_like_isohybrid() did not cause a MBR
+           partition table if the partitions are data files in the ISO
+           rather than appended
+* Bug fix: The lseek methods of IsoFileSource for local filesystem and loaded
+           ISO returned libisofs error codes as positive off_t numbers
+* Bug fix: Freshly cloned data files from imported image were not marked as
+           imported. Thanks to Ivan Shmakov. (Closes: #1022851)
+* Bug fix: Size of further CE area was calculated wrong if its CE entry ended
+           exactly at a block boundary
+
+07 Jun 2023  [5a867c4]
+configure.ac
+libisofs/libisofs.h
+Version leap to 1.5.7
+
+09 Jun 2023  [09ec2fa]
+libisofs/rockridge.h
+ChangeLog
+libisofs/changelog.txt
+Bug fix: On non-GNU/Linux systems ssize_t was not defined in rockridge.h .
+         Report and fix proposal by Rui Chen.
+         
+09 Jun 2023  [8a4f1f8]
+libisofs/ecma119.c
+libisofs/fs_image.c
+libisofs/rockridge.h
+libisofs/rockridge.c
+libisofs/stream.c
+Explicitely included unistd.h in all source file which use ssize_t
+
+09 Jun 2023  [9ec998f]
+README
+Updated copyright year in README
+
+12 Jun 2023  [branch-1.5.6.pl01: fa3da9b]
+libisofs/rockridge.h
+ChangeLog
+libisofs/changelog.txt
+Bug fix: On non-GNU/Linux systems ssize_t was not defined in rockridge.h .
+         Report and fix proposal by Rui Chen.
+         
+------------------------------- release - libisofs-1.5.6.pl01 - 12 Jun 2023
+* Bug fix: On non-GNU/Linux systems ssize_t was not defined in rockridge.h .
+           Report and fix proposal by Rui Chen.
+
+
+20 Nov 2023  [8a84397]
+libisofs/libisofs.h
+Clarified in the description of iso_image_set_boot_image() the meaning of
+pseudo-path parameters "start" and "size"
+
+20 Nov 2023  [405f0f0]
+libisofs/fs_image.c
+Improved size estimation and property assessment of El Torito hidden boot images
+
+10 May 2024  [8ed27c6]
+libisofs/ecma119.c
+libisofs/system_area.h
+libisofs/system_area.c
+Enabled up to 8 appended GPT partitions and improved their number mapping
+
+12 May 2024  [d9c548d]
+libisofs/libisofs.h
+libisofs/image.h
+libisofs/image.c
+libisofs/fs_image.c
+libisofs/eltorito.h
+libisofs/eltorito.c
+libisofs/system_area.h
+libisofs/system_area.c
+Bug fix: File path of imported BIOS boot image was forgotten when it gets
+         overwritten by a file of the same name. Thanks Brian C. Lane.
+
+12 May 2024  [8ffd3b3]
+libisofs/libisofs.h
+Clarified the API description of NULL data in iso_write_opts_set_system_area()
+
+18 May 2024  [483a68a]
+libisofs/fs_image.c
+libisofs/tree.c
+Avoided use of uninitialized variables which was introduced by commit d9c548d
+
+18 May 2024  [57fcd4b]
+libisofs/fs_image.c
+Fixed assessment of MIPS boot equipment which was broken by commit 405f0f0
+
+19 May 2024  [7870801]
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/iso1999.c
+Improved warning messages about symbolic links and special files in
+ISO 9660:1999 tree
+
+12 Jul 2024  [425f5d0]
+libisofs/libisofs.h
+Removed germanisms about "eventual" from API description
+
+16 Jul 2024  [d78028f]
+configure.ac
+Makefile.am
+libisofs/libisofs.h
+libisofs/image.h
+libisofs/image.c
+libisofs/builder.c
+libisofs/fs_local.c
+libisofs/node.c
+libisofs/rockridge.c
+libisofs/messages.c
+libisofs/util.c
+libisofs/aaip_0_2.h
+libisofs/aaip_0_2.c
+libisofs/aaip-os-linux.c
+libisofs/aaip-os-freebsd.c
+libisofs/aaip-os-dummy.c
+libisofs/libisofs.ver
+doc/susp_aaip_isofs_names.txt
+New API calls iso_local_get_lfa_flags(), iso_local_set_lfa_flags(),
+iso_node_get_lfa_flags(), iso_node_set_lfa_flags(),
+iso_util_decode_lfa_flags(), iso_util_encode_lfa_flags()
+
+19 Jul 2024  [fbcacaf]
+libisofs/aaip-os-linux.c
+Fixed iso_local_set_lfa_flags()
+
+19 Jul 2024  [99700ac]
+libisofs/libisofs.h
+libisofs/fs_local.c
+libisofs/util.c
+libisofs/libisofs.ver
+New API call iso_util_get_lfa_masks()
+
+20 Jul 2024  [843587a]
+libisofs/libisofs.h
+libisofs/util.c
+libisofs/aaip-os-linux.c
+Small corrections and adjustments to the recent commits
+
+Jul 23 2024  [cc1884a]
+configure.ac
+Changed in ./configure --enable-linux-attr-flags to --enable-lfa-flags
+
+06 Aug 2024  [7fc7d65]
+libisofs/libisofs.h
+libisofs/fs_local.c
+libisofs/messages.c
+libisofs/aaip-os-linux.c
+New return value 4 of iso_local_get_lfa_flags(): file does not have lfa_flags
+
+06 Aug 2024  [290ef77]
+libisofs/aaip-os-linux.c
+Improved handling of dead symbolic links in aaip_get_attr_list()
+
+07 Aug 2024  [08792a4]
+libisofs/util.c
+Corrected a memory infringement in iso_util_decode_lfa_flags()
+
+08 Aug 2024  [d717613]
+libisofs/fs_local.c
+Avoided touching local file attributes if no change would happen
+
+11 Aug 2024  [443743d]
+libisofs/libisofs.h
+libisofs/fs_local.c
+libisofs/util.c
+libisofs/libisofs.ver
+New API call iso_util_get_effective_lfa_mask()
+
+18 Aug 2024  [7082724]
+libisofs/aaip-os-linux.c
+Improved format of error messages from aaip-os-linux.c
+
+25 Aug 2024  [c4769f3]
+libisofs/libisofs.h
+libisofs/messages.c
+libisofs/fs_local.c
+Separated errors about Linux file attributes from those of xattr and ACL
+
+25 Aug 2024  [622b564]
+libisofs/libisofs.h
+libisofs/fs_local.c
+libisofs/aaip-os-linux.c
+New flag bit2 for iso_local_get_lfa_flags() and iso_local_set_lfa_flags()
+
+27 Aug 2024  [efaab52]
+libisofs/libisofs.h
+libisofs/image.h
+libisofs/image.c
+libisofs/builder.c
+libisofs/fs_local.c
+libisofs/aaip-os-linux.c
+New flag bit5 for iso_file_source_get_aa_string() and
+iso_image_set_ignore_aclea(), new flag bit7 for iso_local_get_lfa_flags()
+
+01 Sep 2024  [3a43995]
+libisofs/ecma119_tree.c
+Made ECMA-119 tree sorting deterministic with different qsort implementations.
+By Henrik Lindström.
+
+01 Sep 2024  [8d9fcf6]
+libisofs/ecma119.c
+libisofs/filesrc.h
+libisofs/filesrc.c
+Made filelist weight sorting deterministic with different qsort
+implementations. By Henrik Lindström.
+
+07 Sep 2024  [9ef7e7f]
+doc/susp_aaip_isofs_names.txt
+Marked the list of lfa flags by "settable", "superuser", "directory only"
+
+08 Sep 2024  [5937ffd]
+libisofs/util.c
+Fixed iso_util_encode_lfa_flags() in respect to attribute "F"
+
+08 Sep 2024  [411d818]
+libisofs/libisofs.h
+libisofs/messages.c
+libisofs/fs_local.c
+libisofs/aaip_0_2.h
+libisofs/aaip-os-linux.c
+New error ISO_LFA_NO_OPEN_LOCAL to distinguish open failure from ioctl failure
+
+14 Sep 2024  [eed1e64]
+libisofs/aaip-os-linux.c
+Corrected a comment at function aaip_get_lfa_flags
+
+06 Oct 2024  [6a100a6]
+libisofs/libisofs.h
+libisofs/iso1999.h
+libisofs/iso1999.c
+doc/devel/cookbook/'ISO 9660-1999'
+Clarified meaning of "ISO 9660:1999" as Enhanced Volume Descriptor of
+ECMA-119 4th Edition
+
+16 Oct 2024  [72f0365]
+libisofs/aaip_0_2.c
+Bug fix: Empty AAIP value spoiled decoding of all AAIP attributes
+
+03 Nov 2024  [b7c1e03]
+configure.ac
+Makefile.am
+libisofs/libisofs.h
+libisofs/image.h
+libisofs/image.c
+libisofs/builder.c
+libisofs/fs_local.c
+libisofs/messages.c
+libisofs/node.c
+libisofs/rockridge.c
+libisofs/aaip_0_2.h
+libisofs/aaip_0_2.c
+libisofs/aaip-os-dummy.c
+libisofs/aaip-os-freebsd.c
+libisofs/aaip-os-linux.c
+libisofs/libisofs.ver
+doc/susp_aaip_isofs_names.txt
+New API calls iso_node_get_projid(), iso_node_set_projid(),
+iso_local_get_projid(), iso_local_set_projid()
+
+16 Dec 2024  [59d1056]
+libisofs/libisofs.h
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/system_area.c
+libisofs/libisofs.ver
+New API call iso_write_opts_set_gpt_with_gaps
+
+01 Mar 2025  [24e3f44]
+libisofs/rockridge.c
+Bug fix: Symbolic links with xattr could cause unusable ISO filesystems.
+         Thanks Paul von Behren.
+
+01 Mar 2025  [17d297b]
+configure.ac
+Makefile.am
+libisofs/libisofs.h
+libisofs/ecma119.c
+libisofs/rockridge.h
+libisofs/rockridge.c
+libisofs/messages.c
+New configuration option --enable-dir-rec-size-check
+
+24 Mar 2025  [30fcd2d]
+configure.ac
+Added to configure.ac explicit checks for stdint.h, inttypes.h, stdlib.h
+because slibtool does not put them into ./configure by default
+
+06 Apr 2025  [8440291]
+libisofs/libiso_msgs.c
+Rectified license text of libiso_msgs.c
+
+07 Apr 2025  [73698da]
+libisofs/rockridge_read.c
+Bug fix: When reading multiple slashes in symbolic link targets they were
+         condensed to a single one if not marked by the SL ROOT-flag
+
+07 Apr 2025  [fa19885]
+libisofs/rockridge.c
+Bug fix: Empty symolic link target components which represent add-on
+         slashes were written with ROOT flag set
+
+07 Apr 2025  [b9faf57]
+libisofs/rockridge.c
+Bug fix: The last trailing slash in a symbolic link target was not written
+
+12 Apr 2025  [4f47414]
+libisofs/fs_image.c
+libisofs/node.c
+libisofs/stream.c
+libisofs/ecma119.c
+libisofs/rockridge.h
+libisofs/rockridge.c
+libisofs/aaip_0_2.h
+Added missing includes of sys/types.h for ssize_t
+
+12 Apr 2025  [f314f30]
+libisofs/rockridge.h
+Removed accidentially introduced condition HAVE_SYS_TYPES_H
+
+16 Apr 2025  [955a7cd]
+libisofs/libisofs.h
+libisofs/messages.c
+libisofs/aaip-os-linux.c
+libisofs/aaip-os-freebsd.c
+libisofs/aaip-os-dummy.c
+libisofs/libisofs.ver
+New API call iso_local_create_dev()
+
+24 Jun 2025  [c843d41]
+libisofs/ecma119.c
+Bug fix: The .. directory record exposed Rock Ridge properties of its
+         grand grand parent. Caused by commit 4d0063f7 in 2009 which fixed
+         the block address pointer of the .. record.
+
+24 Jun 2025  [a485e91]
+libisofs/ecma119.c
+Enhanced reporting with --enable-dir-rec-size-check
+
+24 Jun 2025  [2d4dd99]
+libisofs/ecma119.c
+Fixed a potential problem with .. directory record on big-endian CPUs
+
+24 Jun 2025  [517a8d9]
+libisofs/libisofs.h
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/ecma119_tree.h
+libisofs/rockridge.h
+libisofs/rockridge.c
+libisofs/libisofs.ver
+New API call iso_write_opts_set_rrip_tf_long() and date check for year 2156
+limit to produce 17-byte timestamps
+
+14 Sep 2025  [605643d]
+libisofs/iso1999.c
+libisofs/ecma119_tree.c
+libisofs/joliet.c
+libisofs/filters/external.c
+libisofs/filters/zisofs.c
+libisofs/filters/gzip.c
+libisofs/aaip_0_2.c
+Reacted on compiler warnings of Debian 13 Sid about calloc argument swap
+
+14 Sep 2025  [21cd286]
+libisofs/stream.c
+libisofs/eltorito.c
+libisofs/filters/external.c
+libisofs/filters/zisofs.c
+libisofs/filters/gzip.c
+Reacted on compiler warnings of Debian 13 Sid about IsoStreamIface.type
+
+16 Sep 2025  [1447b1a]
+libisofs/libisofs.h
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/rockridge.h
+libisofs/rockridge.c
+libisofs/util.c
+libisofs/libisofs.ver
+New API call iso_write_opts_set_rrip_tf_year0() 
+
+03 Oct 2025  [bf6f4d1]
+libisofs/libisofs.h
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/rockridge.c
+libisofs/libisofs.ver
+Replaced new API call iso_write_opts_set_rrip_tf_year0() by contrary call
+iso_write_opts_set_rrip_tf_y1900(). I.e. the default was changed.
+
+03 Oct 2025  [ad5996e]
+libisofs/rockridge.c
+Introduced proper assessment and curbing of long form timestamps if
+iso_write_opts_set_replace_timestamps() is not set to default value 0
+
+03 Dec 2025  [b820423]
+libisofs/fs_image.c
+libisofs/util.c
+Improved messages about failed image loading due to MD5 mismatch
+
+03 Dec 2025  [9f2e54b]
+libisofs/messages.c
+Corrected error message text of ISO_MD5_TAG_MISPLACED
+
+03 Dec 2025  [1e60c28]
+libisofs/fs_image.c
+Improved refusal message of image loading in case of problematic MD5 tags
+
+15 Dec 2025  [09e1957]
+libisofs/libisofs.h
+libisofs/image.h
+libisofs/image.c
+libisofs/ecma119.c
+libisofs/joliet.c
+libisofs/iso1999.c
+libisofs/hfsplus.c
+libisofs/fs_image.c
+libisofs/util.h
+libisofs/util.c
+libisofs/libisofs.ver
+New API calls iso_image_set_volume_id_v2(), iso_image_get_volume_id_v2(),
+iso_image_fs_get_volume_id_v2()
+
+17 Dec 2025  [036fe44]
+libisofs/libisofs.h
+libisofs/ecma119.h
+libisofs/ecma119.c
+libisofs/fs_image.c
+libisofs/libisofs.ver
+New API call iso_write_opts_set_relaxed_nonvol_atts()
+
+17 Dec 2025  [fc8be04]
+libisofs/util.h
+libisofs/util.c
+libisofs/ecma119.c
+Bug fix: The characters '.' and ';' were wrongly disallowed with PVD file names
+
+20 Mar 2026  [633918c]
+libisofs/libiso_msgs.h
+Removed reference to libburn-hackers@pykix.org 
+
+29 Mar 2026  [b34018a]
+libisofs/hfsplus.c
+Wrote a comment about false gcc-15 sprintf overflow warning in hfsplus.c
+
+30 Mar 2026  [b039806]
+libisofs/hfsplus.c
+Silenced gcc-15 sprintf overflow warning in hfsplus.c
+
+  []
+configure.ac
+libisofs/libisofs.h
+README
+Version leap to 1.5.8
+
+  []
+ChangeLog
+libisofs/changelog.txt
+Updated change log
+
+------------------------------------ release - libisofs-1.5.8 - 02 Apr 2026
+* Bug fix: File path of imported BIOS boot image was forgotten when it gets
+           overwritten by a file of the same name. Thanks Brian C. Lane.
+* Bug fix: Reproducibility of ISO images depended on "undefined" qsort(3)
+           behavior with comparer function result 0
+* Bug fix: Empty AAIP value spoiled decoding of all AAIP attributes
+* Bug fix: Symbolic links with xattr could cause unusable ISO filesystems.
+           Thanks Paul von Behren.
+* Bug fix: When reading multiple slashes in symbolic link targets they were
+           condensed to a single one if not marked by the SL ROOT-flag
+* Bug fix: Empty symolic link target components which represent add-on
+           slashes were written with ROOT flag set
+* Bug fix: The last trailing slash in a symbolic link target was not written
+* Bug fix: The .. directory record exposed Rock Ridge properties of its
+           grand grand parent. Caused by commit 4d0063f7 in 2009 which fixed
+           the block address pointer of the .. record.
+* Bug fix: The characters '.' and ';' were wrongly disallowed with PVD
+           file names
+* Improved size estimation and property assessment of El Torito hidden boot
+  images
+* Enabled up to 8 appended GPT partitions and improved their number mapping
+* New API calls iso_local_get_lfa_flags(), iso_local_set_lfa_flags(),
+  iso_node_get_lfa_flags(), iso_node_set_lfa_flags(),
+  iso_util_decode_lfa_flags(), iso_util_encode_lfa_flags(),
+  iso_util_get_lfa_masks(), iso_util_get_effective_lfa_mask()
+* New API calls iso_node_get_projid(), iso_node_set_projid(),
+  iso_local_get_projid(), iso_local_set_projid()
+* New API call iso_write_opts_set_gpt_with_gaps
+* New API call iso_local_create_dev()
+* New API call iso_write_opts_set_rrip_tf_long() and date check for year 2150
+  limit to produce 17-byte timestamps
+* New API call iso_write_opts_set_rrip_tf_y1900() 
+* New API calls iso_image_set_volume_id_v2(), iso_image_get_volume_id_v2(),
+  iso_image_fs_get_volume_id_v2()
+* New API call iso_write_opts_set_relaxed_nonvol_atts()
+
+
+
+>>> ??? Restrict restoring directory-only flags to directories ? "DFPT"
+
+
+------------------------------------------------------------------------
+
+
+Todo about iso_read_image_feature_named() :
+Declared but not yet filled:
+    {"hfsplus", 0, 0, 0, NULL},
+    {"fat", 0, 0, 0, NULL},
+    {"hfsp_serial_number", 0, 1, 0, NULL},
+    {"hfsp_block_size", 0, 0, 0, NULL},
+    {"hardlinks", 0, 0, 0, NULL},
+    {"rr_reloc_dir", 0, 1, 0, NULL},
+    {"rr_reloc_flags", 0, 0, 0, NULL, 0},
+    {"allow_7bit_ascii", 0, 0, 0, NULL},  ??? How to recognize this ?
+    {"scdbackup_tag_name", 0, 1, 0, NULL},
+    {"scdbackup_tag_time", 0, 1, 0, NULL},
+    {"always_gmt", 0, 0, 0, NULL},
+IsoWriteOpts properties not yet covered by above list:
+??? dir_rec_mtime
+??? sort_files
+??? output_charset
+??? appendable
+??? ms_block
+??? data_start_lba
+??? tail_blocks
+??? vol_*_time
+??? vol_uuid
+??? system_area_data
+??? system_area_size
+??? system_area_options
+??? partition_offset
+??? partition_secs_per_head , partition_heads_per_cyl
+??? Other properties of partitions and boot equipment 
+
+

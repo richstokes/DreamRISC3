@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- DreamRISC boot logo for the Dreamcast licence screen (mkdcdisc -i).
+     Rendered to assets/acorn-logo.png at 320x90, max 128 colours, flat fills so the
+     RLE-compressed MR data stays under mkdcdisc's 8KB limit. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="90" viewBox="0 0 320 90">
+  <defs>
+    <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="7" height="7" fill="#5a2d0c"/>
+      <rect width="7" height="2.4" fill="#7a3f14"/>
+      <rect width="2.4" height="7" fill="#7a3f14"/>
+    </pattern>
+    <clipPath id="capclip">
+      <path d="M22 44 Q22 16 54 16 Q86 16 86 44 Q78 40 70 46 Q62 40 54 46 Q46 40 38 46 Q30 40 22 44 Z"/>
+    </clipPath>
+  </defs>
+  <rect width="320" height="90" fill="#ffffff"/>
+
+  <!-- nut -->
+  <path d="M27 40 Q27 84 54 84 Q81 84 81 40 Z" fill="#b8632a"/>
+  <path d="M37 42 Q37 72 50 78 Q40 66 40 42 Z" fill="#d9884a"/>
+  <path d="M63 44 Q70 60 60 78 Q75 68 75 44 Z" fill="#8f4719"/>
+
+  <!-- cap -->
+  <rect x="22" y="16" width="64" height="32" fill="url(#hatch)" clip-path="url(#capclip)"/>
+  <path d="M22 44 Q22 16 54 16 Q86 16 86 44 Q78 40 70 46 Q62 40 54 46 Q46 40 38 46 Q30 40 22 44 Z"
+        fill="none" stroke="#3f1e06" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- stem -->
+  <path d="M51 17 Q50 9 56 5 Q60 10 57 17 Z" fill="#3f1e06"/>
+
+  <!-- wordmark -->
+  <text x="104" y="52" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="700"
+        font-size="36" fill="#1f1f1f" letter-spacing="-1">Dream<tspan fill="#b8632a">RISC</tspan></text>
+  <text x="106" y="73" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="400"
+        font-size="12" fill="#555555" letter-spacing="1">RISC OS 3.11 ON DREAMCAST</text>
+</svg>
