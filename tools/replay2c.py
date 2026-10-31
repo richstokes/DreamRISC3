@@ -16,4 +16,6 @@ for line in open(sys.argv[1]):
     elif parts[1] == "shot":
         shot += 1
         print(f"{{{ms}, 's', {shot}, 0}},")
+    else:
+        print(f"replay2c: skipping '{line.strip()}', checksums after it will differ", file=sys.stderr)
 print("};")
