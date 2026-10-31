@@ -1,0 +1,43 @@
+# Launch each ROM app by name and leave it running.
+70 key 0 12 1
+70.1 key 0 12 0
+72 type filer_run resources:$.apps.!alarm\n
+77 key 4 7 1
+77.1 key 4 7 0
+84 shot build/ra_alarm.ppm
+85 key 0 12 1
+85.1 key 0 12 0
+87 type filer_run resources:$.apps.!calc\n
+92 key 4 7 1
+92.1 key 4 7 0
+99 shot build/ra_calc.ppm
+100 key 0 12 1
+100.1 key 0 12 0
+102 type filer_run resources:$.apps.!chars\n
+107 key 4 7 1
+107.1 key 4 7 0
+114 shot build/ra_chars.ppm
+115 key 0 12 1
+115.1 key 0 12 0
+117 type filer_run resources:$.apps.!draw\n
+122 key 4 7 1
+122.1 key 4 7 0
+129 shot build/ra_draw.ppm
+130 key 0 12 1
+130.1 key 0 12 0
+132 type filer_run resources:$.apps.!edit\n
+137 key 4 7 1
+137.1 key 4 7 0
+144 shot build/ra_edit.ppm
+145 key 0 12 1
+145.1 key 0 12 0
+147 type filer_run resources:$.apps.!help\n
+152 key 4 7 1
+152.1 key 4 7 0
+159 shot build/ra_help.ppm
+160 key 0 12 1
+160.1 key 0 12 0
+162 type filer_run resources:$.apps.!paint\n
+167 key 4 7 1
+167.1 key 4 7 0
+174 shot build/ra_paint.ppm

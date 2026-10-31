@@ -1,0 +1,15 @@
+# Launch !Configure, open it from the icon bar, then open the Window manager panel.
+70 key 0 12 1
+70.1 key 0 12 0
+72 type filer_run resources:$.apps.!configure\n
+77 key 4 7 1
+77.1 key 4 7 0
+91 move 1000 1000
+92 move -71 -19
+94 button 1
+94.2 button 0
+110 move -1000 -1000
+111.5 move 229 202
+113 button 1
+113.2 button 0
+122 shot build/cf1.ppm

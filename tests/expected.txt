@@ -17,3 +17,5 @@ tests/web-iconbar.replay 124 2B252EB9
 tests/drag.replay 107 C841A194
 tests/taskwindow.replay 94 93FE9DB4
 tests/menus.replay 217 F1A17D89
+tests/configure.replay 124 60C11776
+tests/romapps.replay 178 1A2A4554
