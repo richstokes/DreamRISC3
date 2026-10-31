@@ -10,8 +10,8 @@ RISC OS 3.11 running natively on the Sega Dreamcast, built on KallistiOS.
     <td><img src="docs/draw.png" alt="!Draw with a drawing and its menu open"></td>
   </tr>
   <tr>
-    <td><img src="docs/apps-folder.png" alt="Apps folder, with !Draw and !Paint on the icon bar"></td>
-    <td><img src="docs/lander.png" alt="Lander in flight"></td>
+    <td><img src="docs/web.png" alt="The !Web browser on its home page"></td>
+    <td><img src="docs/lander.png" alt="Lander, with the terrain in view"></td>
   </tr>
 </table>
 
