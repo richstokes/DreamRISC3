@@ -36,7 +36,6 @@ The disc holds `rom.bin` and `ov_N.bin`. Under dcload the console reads the same
 Console check (10/31): the `tests/draw.replay` drawing session matched the harness at both checkpoints, with its two key events removed on both sides because hardware replays do not support keys yet.
 
 
-- ROM data: hot pages load into RAM at boot; 12 cold pages stream through a 6-slot cache, using the page tables. Fewer are cold than you'd hope. The kernel walks module headers on every service call and ResourceFS scans Messages and ROMFonts, so only ~300KB can leave RAM
 Net saving is ~0.9MB. Running `!Draw` and `!Paint` together will reload a unit each time focus moves between them, ~1s each: untested and it will be ugly.
 
 Open question: `USE_BASE_REG` puts machine state in r14 and saves ~0.6MB, but it breaks the POST with a bad abort on SH-4. dcload's syscalls also clobber r14, and `RESTORE_C()` handles that part. Cause of the abort unknown, so it's off.
