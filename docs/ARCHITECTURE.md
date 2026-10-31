@@ -85,5 +85,5 @@ Heartbeat builds use `HW_LOG=1`, and `HW_REPLAY=1` adds a generated `build/repla
 ## Next Steps
 
 1. Look at the real screen, try physical keyboard and mouse, and catch the boot hang if it recurs
-1. Persist saves: write the disc image to SD, or at least a small area to VMU
-4. Sound through AICA, and a true 640x480 desktop mode
+2. Persist saves: write the disc image to SD, or at least a small area to VMU
+3. Sound through AICA, and a true 640x480 desktop mode
