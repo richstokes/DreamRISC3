@@ -1,12 +1,12 @@
 REM Web: a window on the pages src/web.c fetches and lays out
 REM A toolbar pane sits over the top of the page window
-DIM b% 1024, u% 192, title% 64, stat% 240, info% 240, line% 512, ibuf% 40, spare% 256
+DIM b% 1024, u% 192, title% 64, fv% 80, stat% 240, info% 240, line% 512, ibuf% 40, spare% 256
 swi%=&CDC00
 lineh%=36
 charw%=16
 barh%=64
 cols%=76
-quit%=FALSE: lines%=0: oldstate%=0: bytes%=0
+quit%=FALSE: pagestep%=500: lines%=0: oldstate%=0: bytes%=0
 $u%="about:home"
 $stat%=""
 $title%="Web"
@@ -22,9 +22,9 @@ REPEAT
     WHEN 0: PROCtick
     WHEN 1: PROCredraw
     WHEN 2: PROCreopen
-    WHEN 3: PROChide
+    WHEN 3: IF !b%=box% THEN PROCboxclose ELSE PROChide
     WHEN 6: IF b%!12=-2 THEN PROCbarclick ELSE PROCclick
-    WHEN 8: IF b%!24=13 THEN SYS swi%+17,u% ELSE SYS "Wimp_ProcessKey",b%!24
+    WHEN 8: PROCkey(b%!0,b%!24)
     WHEN 9: quit%=TRUE
     WHEN 17,18: IF b%!16=0 THEN quit%=TRUE
   ENDCASE
@@ -44,6 +44,51 @@ DIM t% LEN(a$)+1
 $t%=a$
 =t%
 
+
+DEF PROCkey(w%,k%)
+CASE k% OF
+  WHEN 13: IF w%=box% THEN PROCboxsend ELSE SYS swi%+17,u%
+  WHEN 27: IF w%=box% THEN PROCboxclose ELSE SYS "Wimp_ProcessKey",k%
+  WHEN &18F: PROCscroll(lineh%*3)
+  WHEN &18E: PROCscroll(-lineh%*3)
+  WHEN &19F: PROCscroll(pagestep%)
+  WHEN &19E: PROCscroll(-pagestep%)
+  OTHERWISE: SYS "Wimp_ProcessKey",k%
+ENDCASE
+ENDPROC
+
+DEF PROCscroll(d%)
+b%!0=page%
+SYS "Wimp_GetWindowState",,b%
+pagestep%=b%!16-b%!8-barh%-lineh%
+b%!24=b%!24+d%
+IF b%!24>0 THEN b%!24=0
+b%!28=-1
+PROCreopen
+ENDPROC
+
+REM A text box on a page is edited here, and Return sends its form
+DEF PROCboxopen
+SYS swi%+23,fv%
+!ibuf%=box%: ibuf%!4=0: ibuf%!8=0: ibuf%!12=0
+SYS "Wimp_SetIconState",,ibuf%
+!b%=box%
+SYS "Wimp_GetWindowState",,b%
+b%!28=-1
+SYS "Wimp_OpenWindow",,b%
+SYS "Wimp_SetCaretPosition",box%,0,0,0,-1,LEN(FNstr(fv%))
+ENDPROC
+
+DEF PROCboxclose
+!ibuf%=box%
+SYS "Wimp_CloseWindow",,ibuf%
+SYS "Wimp_SetCaretPosition",bar%,2,0,0,-1,LEN(FNstr(u%))
+ENDPROC
+
+DEF PROCboxsend
+SYS swi%+24,fv%
+PROCboxclose
+ENDPROC
 
 DEF PROCiconbar(sprite$)
 DIM menu% 64
@@ -103,6 +148,18 @@ PROCicon(112,-58,216,-6,&1700313D,FNtext("Reload"),-1,7)
 PROCicon(224,-58,1228,-6,&0700F135,u%,valid%,192)
 b%!84=3
 SYS "Wimp_CreateWindow",,b% TO bar%
+REM The text box editor
+b%!0=260: b%!4=470: b%!8=1020: b%!12=570
+b%!16=0: b%!20=0: b%!24=-1: b%!28=&87000002
+PROCcolours
+b%?35=1
+b%!40=0: b%!44=-100: b%!48=760: b%!52=0
+b%!56=&2700003D: b%!60=0: b%!64=1: b%!68=0
+$(b%+72)="Enter text"
+p%=88
+PROCicon(16,-76,744,-20,&0700F135,fv%,valid%,64)
+b%!84=1
+SYS "Wimp_CreateWindow",,b% TO box%
 ENDPROC
 
 DEF PROCopen
@@ -136,7 +193,7 @@ SYS swi%+19 TO st%,n%,got%
 IF st%=2 AND oldstate%<>2 THEN PROCloaded(n%)
 IF st%=1 OR st%<>oldstate% THEN
   SYS swi%+20,info%
-  IF st%=1 THEN PROCsettitle(FNstr(info%+192)+" "+STR$(got% DIV 1024)+"K")
+  IF st%=1 THEN PROCsettitle(FNstr(info%+192)+" "+STR$(got% DIV 1024)+"KB")
   IF st%=3 THEN PROCsettitle(FNstr(info%+192))
 ENDIF
 oldstate%=st%
@@ -176,6 +233,7 @@ IF b%!12=bar% THEN
   IF b%!16=1 THEN SYS swi%+17,u%
   ENDPROC
 ENDIF
+IF b%!12=box% THEN ENDPROC
 IF b%!12<>page% THEN ENDPROC
 x%=b%!0: y%=b%!4
 !ibuf%=page%
@@ -183,6 +241,7 @@ SYS "Wimp_GetWindowState",,ibuf%
 x%=(x%-(ibuf%!4-ibuf%!20)-8) DIV charw%
 y%=(ibuf%!16-ibuf%!24-y%-barh%-8) DIV lineh%
 SYS swi%+22,y%,x% TO sc%
+IF sc%=2 THEN PROCboxopen
 ENDPROC
 
 DEF PROCredraw
@@ -219,7 +278,13 @@ WHILE a%<line%+got%
   IF st%=2 THEN w%=8
   IF st%=3 THEN w%=5
   IF st%=4 THEN w%=4
+  IF st%=5 THEN
+    SYS "Wimp_SetColour",12
+    RECTANGLE FILL cx%-2,y%-34,len%*charw%+2,32
+    w%=7
+  ENDIF
   SYS "Wimp_SetColour",w%
+  IF st%=5 THEN RECTANGLE cx%-2,y%-34,len%*charw%+2,32
   MOVE cx%,y%-4
   PRINT s$;
   IF st%=1 THEN MOVE cx%+2,y%-4: PRINT s$;

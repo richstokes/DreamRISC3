@@ -14,6 +14,13 @@ text</pre><table><tr><td>a<td>b<tr><td>c<td>d</table></body></html>"""
 SECOND = b"<title>Second</title><p>You followed a link.</p><a href='/'>Home</a>"
 
 
+BIG = b"<title>Big</title><head><script>" + b"var x='<p>not this</p>';" * 14000 + b"</script></head><h1>After the script</h1><p>Visible text.</p>"
+LONG = b"<title>Long</title>" + b"".join(b"<p>Paragraph number %d of a long page.</p>" % i for i in range(40000))
+FORM = b"""<title>Form</title><form action=/echo><input type=hidden name=h value=1><input name=q value=old>
+<input type=submit name=go value=Find></form><form method=post action=/echo><textarea name=t>x</textarea>
+<button type=submit>Send it</button></form>"""
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -24,7 +31,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
-        body = SECOND if self.path.endswith("second.html") else PAGE
+        pages = {"/big": BIG, "/long": LONG, "/form": FORM}
+        if self.path.startswith("/echo"):
+            body = b"<title>Echo</title><p>got " + self.path.encode() + b"</p>"
+        else:
+            body = pages.get(self.path, SECOND if self.path.endswith("second.html") else PAGE)
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
         self.send_header("Transfer-Encoding", "chunked")
@@ -33,6 +44,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             chunk = body[start:start + 100]
             self.wfile.write(b"%x\r\n%s\r\n" % (len(chunk), chunk))
         self.wfile.write(b"0\r\n\r\n")
+
+    def do_POST(self):
+        data = self.rfile.read(int(self.headers["Content-Length"]))
+        print("POST", data, flush=True)
+        self.path = "/echo?" + data.decode()
+        self.do_GET()
 
     def log_message(self, *args):
         print(self.path, flush=True)

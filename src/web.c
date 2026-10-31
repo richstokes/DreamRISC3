@@ -12,25 +12,44 @@
 #include "net.h"
 #include "web.h"
 
-#define BODY_SIZES {96 * 1024, 64 * 1024, 32 * 1024} /* pages longer are cut short */
-#define MAX_TEXT (48 * 1024)
-#define MAX_LINES 3072
-#define MAX_LINKS 1024
-#define LINK_POOL (16 * 1024)
+#define TEXT_SIZES {256 * 1024, 128 * 1024, 64 * 1024, 32 * 1024}
+#define HEAP_SPARE (64 * 1024) /* left for the network while a page loads */
+#define BYTES_PER_LINE 32
+#define WINDOW (16 * 1024)     /* HTML awaiting parsing; a longer tag is dropped */
+#define RAW WINDOW              /* header reads can overshoot into the body */
+#define MAX_LINKS 2048
+#define MAX_FIELDS 48
+#define MAX_FORMS 16
 #define MAX_URL 256
+#define MAX_QUERY 512
+#define VALUE_MAX 64
+#define FIELD_WIDTH 24
 #define MAX_REDIRECTS 5
 #define HISTORY 8
 #define TIMEOUT_MS 30000
 #define RETRY_MS 10
-#define TRY_AGAIN 35
+#define ERR_AGAIN 35
 #define ERR_INPROGRESS 36
 #define ERR_ALREADY 37
 #define ERR_NOBUFS 55
 #define ERR_ISCONN 56
 #define ERR_NOTCONN 57
 #define NO_LINK 0xFFFF
+#define FIELD_LINK 0x8000      /* a run's link: set means an index into fields */
 #define RUN_HEADER 5 /* column, length, style, link high, link low; then the text */
 #define MAX_RUN 200
+#define TEXT_MARGIN 256        /* always room to say a page was cut short */
+#define SEARCH_URL "https://lite.duckduckgo.com/lite/?q="
+
+enum { FIELD_TEXT, FIELD_HIDDEN, FIELD_SUBMIT };
+
+typedef struct {
+	uint8_t form, kind, width;
+	uint16_t name, value;      /* into link_pool, NO_LINK if absent */
+	uint32_t text_at;          /* where a text box shows on the page */
+} field_t;
+
+typedef struct { uint16_t action; uint8_t post; } form_t;
 
 typedef struct {
 	uint8_t *text;
@@ -39,27 +58,42 @@ typedef struct {
 	uint16_t *link_at;
 	char *link_pool;
 	int links;
+	uint32_t text_size, pool_size;
+	int line_max;
+	field_t fields[MAX_FIELDS];
+	int field_count;
+	form_t forms[MAX_FORMS];
+	int form_count;
+	char refresh[128];         /* a meta refresh, which is how some sites redirect */
 	char title[64];
 	char url[MAX_URL];
 } page_t;
 
+#define USER_AGENT "DreamRISC/1.0 (RISC OS 3.11; Dreamcast)"
+
 static const char home_page[] =
 	"<title>DreamRISC Browser</title><h1>DreamRISC Browser</h1>"
 	"<p>A small web browser for RISC OS 3.11 on the Dreamcast. Type an address in the bar "
-	"above and press Return.</p><h2>Try these</h2><ul>"
+	"above and press Return.</p>"
+	"<form action=\"https://lite.duckduckgo.com/lite/\"><input name=q> <input type=submit value=Search></form>"
+	"<h2>Try these</h2><ul>"
 	"<li><a href=\"http://info.cern.ch/\">The first website</a>"
 	"<li><a href=\"https://text.npr.org/\">NPR text news</a>"
 	"<li><a href=\"https://lite.cnn.com/\">CNN lite</a>"
+	"<li><a href=\"https://news.ycombinator.com/\">Hacker News</a>"
 	"<li><a href=\"https://en.wikipedia.org/wiki/RISC_OS\">RISC OS on Wikipedia</a>"
 	"</ul><h2>Good to know</h2><p>Pages are text only: no pictures, styles or scripts, "
-	"and no forms. <b>Secure sites are encrypted but not verified</b>, so don't type "
-	"anything private.</p><pre>Long pages are cut off after about 96KB.</pre>";
+	"but text boxes and buttons work. Type words in the bar above to search with DuckDuckGo. "
+	"Google needs JavaScript to search, so its search box goes there too. <b>Secure sites are encrypted but not verified</b>, so don't type "
+	"anything private.</p><pre>Very long pages are cut short.</pre>";
 
 static page_t *shown, *ready;
 static volatile int state = WEB_IDLE;
 static volatile int want;
 static char want_url[MAX_URL];
 static int want_keep_history;
+static char want_body[MAX_QUERY];
+static int active_field = -1;
 static char message[48];
 static int body_bytes;
 static char history[HISTORY][MAX_URL];
@@ -73,24 +107,43 @@ static void set_message(const char *text)
 
 /* --- layout --- */
 
+static int page_alloc(page_t *p, uint32_t size, int want_spare)
+{
+	void *spare = NULL;
+	p->text_size = size;
+	p->line_max = (int)(size / BYTES_PER_LINE);
+	p->pool_size = size / 8 > 65000 ? 65000 : size / 8;
+	p->text = malloc(size);
+	p->line_at = malloc(((size_t)p->line_max + 1) * sizeof(uint32_t));
+	p->link_at = malloc(MAX_LINKS * sizeof(uint16_t));
+	p->link_pool = malloc(p->pool_size);
+	if (want_spare)
+		spare = malloc(HEAP_SPARE);
+	free(spare);
+	if (p->text && p->line_at && p->link_at && p->link_pool && (spare || !want_spare))
+		return 1;
+	free(p->text);
+	free(p->line_at);
+	free(p->link_at);
+	free(p->link_pool);
+	return 0;
+}
+
+/* As large as memory allows, which varies a lot with and without an SD card */
 static page_t *page_new(void)
 {
+	static const uint32_t sizes[] = TEXT_SIZES;
 	page_t *p = calloc(1, sizeof(*p));
+	unsigned i;
 	if (!p)
 		return NULL;
-	p->text = malloc(MAX_TEXT);
-	p->line_at = malloc((MAX_LINES + 1) * sizeof(uint32_t));
-	p->link_at = malloc(MAX_LINKS * sizeof(uint16_t));
-	p->link_pool = malloc(LINK_POOL);
-	if (!p->text || !p->line_at || !p->link_at || !p->link_pool) {
-		free(p->text);
-		free(p->line_at);
-		free(p->link_at);
-		free(p->link_pool);
-		free(p);
-		return NULL;
-	}
-	return p;
+	for (i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++)
+		if (page_alloc(p, sizes[i], 1))
+			return p;
+	if (page_alloc(p, sizes[i - 1], 0))
+		return p;
+	free(p);
+	return NULL;
 }
 
 static void page_free(page_t *p)
@@ -105,12 +158,24 @@ static void page_free(page_t *p)
 }
 
 /* Trim to what the page used, so a short page doesn't hold it all */
-static void page_trim(page_t *p, uint32_t used)
+static void page_trim(page_t *p, uint32_t used, uint32_t pool_used)
 {
-	uint8_t *smaller = realloc(p->text, used ? used : 1);
-	if (smaller)
-		p->text = smaller;
+	uint8_t *text = realloc(p->text, used ? used : 1);
+	uint32_t *lines = realloc(p->line_at, ((size_t)p->lines + 1) * sizeof(uint32_t));
+	uint16_t *links = realloc(p->link_at, ((size_t)p->links + 1) * sizeof(uint16_t));
+	char *pool = realloc(p->link_pool, pool_used ? pool_used : 1);
+	if (text)
+		p->text = text;
+	if (lines)
+		p->line_at = lines;
+	if (links)
+		p->link_at = links;
+	if (pool)
+		p->link_pool = pool;
 }
+
+/* Accumulates text until a space or a tag */
+typedef struct { uint8_t data[WEB_COLUMNS]; int len; } word_t;
 
 typedef struct {
 	page_t *p;
@@ -119,12 +184,19 @@ typedef struct {
 	int run_at;     /* offset of the open run's header, or -1 */
 	int blank;      /* the last line was empty, or nothing has been written */
 	int space;      /* a space is due before the next word */
-	int full;
+	int full, finishing;
+	word_t word;
+	int pre, plain, list_depth, in_title, title_len, heading, emphasis, strong;
+	int in_cell;
+	int form;       /* current form, or -1 */
+	int hidden;     /* depth of div inside a display:none */
+	const char *skip; /* closing text being looked for, across reads */
 } layout_t;
 
 static void line_end(layout_t *l)
 {
-	if (l->p->lines >= MAX_LINES || l->used + WEB_COLUMNS + RUN_HEADER * 8 >= MAX_TEXT) {
+	if (!l->finishing && (l->p->lines + 4 >= l->p->line_max ||
+	    l->used + TEXT_MARGIN + WEB_COLUMNS + RUN_HEADER * 8 >= l->p->text_size)) {
 		l->full = 1;
 		return;
 	}
@@ -153,7 +225,7 @@ static void paragraph(layout_t *l)
 static void put_char(layout_t *l, uint8_t c)
 {
 	uint8_t *t = l->p->text;
-	if (l->full)
+	if (l->full || l->hidden)
 		return;
 	if (l->column == 0 && l->indent) {
 		l->column = l->indent;
@@ -197,21 +269,18 @@ static void put_word(layout_t *l, const uint8_t *word, int len)
 	}
 }
 
-/* Accumulates text until a space or a tag */
-typedef struct { uint8_t data[WEB_COLUMNS]; int len; } word_t;
-
-static void word_flush(layout_t *l, word_t *w)
+static void word_flush(layout_t *l)
 {
-	if (w->len)
-		put_word(l, w->data, w->len);
-	w->len = 0;
+	if (l->word.len)
+		put_word(l, l->word.data, l->word.len);
+	l->word.len = 0;
 }
 
-static void word_add(layout_t *l, word_t *w, uint8_t c)
+static void word_add(layout_t *l, uint8_t c)
 {
-	if (w->len == (int)sizeof(w->data))
-		word_flush(l, w);
-	w->data[w->len++] = c;
+	if (l->word.len == (int)sizeof(l->word.data))
+		word_flush(l);
+	l->word.data[l->word.len++] = c;
 }
 
 static int entity(const char *s, const char *end, unsigned *out)
@@ -250,19 +319,19 @@ static int entity(const char *s, const char *end, unsigned *out)
 }
 
 /* RISC OS is Latin-1. Typography folds to ASCII, anything else becomes a ? */
-static void put_code(layout_t *l, word_t *w, unsigned code)
+static void put_code(layout_t *l, unsigned code)
 {
 	switch (code) {
 	case 0x2018: case 0x2019: code = '\''; break;
 	case 0x201C: case 0x201D: code = '"'; break;
 	case 0x2013: case 0x2014: code = '-'; break;
 	case 0x2022: code = '*'; break;
-	case 0x2026: word_add(l, w, '.'); word_add(l, w, '.'); code = '.'; break;
+	case 0x2026: word_add(l, '.'); word_add(l, '.'); code = '.'; break;
 	default: break;
 	}
 	if (code == 160)
 		code = ' ';
-	word_add(l, w, code < 256 ? (uint8_t)code : '?');
+	word_add(l, code < 256 ? (uint8_t)code : '?');
 }
 
 /* One UTF-8 sequence, or a lone byte taken as Latin-1. Returns bytes used. */
@@ -285,15 +354,29 @@ static int decode_utf8(const uint8_t *s, const uint8_t *end, unsigned *out)
 	return extra + 1;
 }
 
+/* A string kept with the page, or NO_LINK if it won't fit */
+static int pool_add(layout_t *l, const char *text, int len, int room)
+{
+	page_t *p = l->p;
+	uint32_t at = l->pool_used;
+	if (len >= 0xFFFF || at + (uint32_t)(room > len ? room : len) + 1 > p->pool_size)
+		return NO_LINK;
+	memcpy(p->link_pool + at, text, (size_t)len);
+	p->link_pool[at + (uint32_t)len] = 0;
+	l->pool_used = at + (uint32_t)(room > len ? room : len) + 1;
+	return (int)at;
+}
+
 static int add_link(layout_t *l, const char *url, int len)
 {
 	page_t *p = l->p;
-	if (p->links >= MAX_LINKS || l->pool_used + (uint32_t)len + 1 > LINK_POOL)
+	int at;
+	if (p->links >= MAX_LINKS)
 		return -1;
-	p->link_at[p->links] = (uint16_t)l->pool_used;
-	memcpy(p->link_pool + l->pool_used, url, (size_t)len);
-	l->pool_used += (uint32_t)len;
-	p->link_pool[l->pool_used++] = 0;
+	at = pool_add(l, url, len, 0);
+	if (at == NO_LINK)
+		return -1;
+	p->link_at[p->links] = (uint16_t)at;
 	return p->links++;
 }
 
@@ -323,6 +406,24 @@ static int attribute(const char *tag, const char *end, const char *attr, const c
 	return -1;
 }
 
+/* In place: attributes hold entities too, and &amp; in links is everywhere */
+static int decode_attribute(char *text, int len)
+{
+	int in = 0, out = 0;
+	while (in < len) {
+		unsigned code;
+		int used = text[in] == '&' ? entity(text + in, text + len, &code) : 0;
+		if (used && code < 256) {
+			text[out++] = (char)code;
+			in += used;
+		} else {
+			text[out++] = text[in++];
+		}
+	}
+	text[out] = 0;
+	return out;
+}
+
 static int tag_is(const char *name, int len, const char *want_name)
 {
 	return (int)strlen(want_name) == len && !strncasecmp(name, want_name, (size_t)len);
@@ -336,191 +437,413 @@ static int tag_in(const char *name, int len, const char *const *list)
 	return 0;
 }
 
-/* Past closing and the > that ends it, if it's a tag still open */
-static const char *skip_past(const char *s, const char *end, const char *closing)
+static void update_style(layout_t *l)
 {
-	size_t n = strlen(closing);
-	for (; s + n <= end; s++) {
-		if (strncasecmp(s, closing, n))
-			continue;
-		s += n;
-		if (closing[n - 1] != '>')
-			while (s < end && *s++ != '>')
-				;
-		return s;
-	}
-	return end;
+	l->style = l->link >= 0 ? ((l->link & FIELD_LINK) ? STYLE_FIELD : STYLE_LINK) :
+		l->heading || l->strong ? STYLE_BOLD : l->pre ? STYLE_CODE :
+		l->emphasis ? STYLE_EM : STYLE_TEXT;
 }
 
-static void layout_html(page_t *p, const char *s, const char *end)
+static int attr_copy(const char *tag, const char *end, const char *name, char *out, int size)
 {
-	static const char *const paragraphs[] = {"p", "div", "section", "article", "header", "footer",
-		"main", "nav", "aside", "form", "table", "ul", "ol", "dl", "blockquote", "figure", NULL};
+	const char *value;
+	int n = attribute(tag, end, name, &value);
+	if (n < 0)
+		return -1;
+	if (n >= size)
+		n = size - 1;
+	memcpy(out, value, (size_t)n);
+	out[n] = 0;
+	return decode_attribute(out, n);
+}
+
+static int add_field(layout_t *l, int kind, const char *tag, const char *end)
+{
+	page_t *p = l->p;
+	field_t *f;
+	char text[VALUE_MAX];
+	int n;
+	if (l->form < 0 || p->field_count >= MAX_FIELDS)
+		return -1;
+	f = &p->fields[p->field_count];
+	f->form = (uint8_t)l->form;
+	f->kind = (uint8_t)kind;
+	n = attr_copy(tag, end, "name", text, sizeof(text));
+	f->name = n > 0 ? (uint16_t)pool_add(l, text, n, 0) : NO_LINK;
+	n = attr_copy(tag, end, "value", text, sizeof(text));
+	f->value = (uint16_t)pool_add(l, text, n > 0 ? n : 0, kind == FIELD_TEXT ? VALUE_MAX : 0);
+	return p->field_count++;
+}
+
+static void put_text_box(layout_t *l, int index)
+{
+	page_t *p = l->p;
+	field_t *f = &p->fields[index];
+	const char *value = f->value == NO_LINK ? "" : p->link_pool + f->value;
+	size_t n = strlen(value);
+	int i;
+	word_flush(l);
+	if (l->column + FIELD_WIDTH + 1 > WEB_COLUMNS)
+		line_end(l);
+	if (l->space && l->column > l->indent)
+		put_char(l, ' ');
+	l->space = 0;
+	l->link = FIELD_LINK | index;
+	update_style(l);
+	f->width = FIELD_WIDTH;
+	for (i = 0; i < FIELD_WIDTH; i++)
+		put_char(l, i < (int)n ? (uint8_t)value[i] : ' ');
+	f->text_at = l->used - FIELD_WIDTH;
+	l->link = -1;
+	update_style(l);
+	l->space = 1;
+}
+
+static void put_button(layout_t *l, int index, const char *label, int n)
+{
+	word_flush(l);
+	l->link = FIELD_LINK | index;
+	update_style(l);
+	l->space = l->space && l->column > l->indent;
+	put_word(l, (const uint8_t *)label, n > WEB_COLUMNS - 2 ? WEB_COLUMNS - 2 : n);
+	l->link = -1;
+	update_style(l);
+	l->space = 1;
+}
+
+static void input_tag(layout_t *l, const char *tag, const char *end)
+{
+	char type[16], label[VALUE_MAX];
+	int n, index;
+	if (attr_copy(tag, end, "type", type, sizeof(type)) < 0)
+		strcpy(type, "text");
+	if (!strcasecmp(type, "hidden")) {
+		add_field(l, FIELD_HIDDEN, tag, end);
+	} else if (!strcasecmp(type, "submit") || !strcasecmp(type, "button") || !strcasecmp(type, "image")) {
+		index = add_field(l, FIELD_SUBMIT, tag, end);
+		if (index >= 0) {
+			n = attr_copy(tag, end, "value", label, sizeof(label));
+			if (n <= 0)
+				n = snprintf(label, sizeof(label), "Submit");
+			put_button(l, index, label, n);
+		}
+	} else if (!strcasecmp(type, "text") || !strcasecmp(type, "search") ||
+	           !strcasecmp(type, "email") || !strcasecmp(type, "url") || !strcasecmp(type, "tel")) {
+		index = add_field(l, FIELD_TEXT, tag, end);
+		if (index >= 0)
+			put_text_box(l, index);
+	}
+}
+
+static void form_tag(layout_t *l, const char *tag, const char *end)
+{
+	page_t *p = l->p;
+	char text[192], method[8];
+	int n;
+	l->form = -1;
+	if (p->form_count >= MAX_FORMS)
+		return;
+	n = attr_copy(tag, end, "action", text, sizeof(text));
+	p->forms[p->form_count].action = (uint16_t)pool_add(l, n > 0 ? text : "", n > 0 ? n : 0, 0);
+	p->forms[p->form_count].post = attr_copy(tag, end, "method", method, sizeof(method)) > 0 &&
+		!strcasecmp(method, "post");
+	l->form = p->form_count++;
+}
+
+static void meta_tag(layout_t *l, const char *tag, const char *end)
+{
+	char equiv[16], content[192], *url;
+	if (attr_copy(tag, end, "http-equiv", equiv, sizeof(equiv)) <= 0 ||
+	    strcasecmp(equiv, "refresh") ||
+	    attr_copy(tag, end, "content", content, sizeof(content)) <= 0)
+		return;
+	url = strstr(content, "url=");
+	if (!url)
+		url = strstr(content, "URL=");
+	if (url)
+		snprintf(l->p->refresh, sizeof(l->p->refresh), "%s", url + 4 + (url[4] == '\'' ? 1 : 0));
+}
+
+static int style_hides(const char *tag, const char *end)
+{
+	char style[64], *p, *out;
+	if (attr_copy(tag, end, "style", style, sizeof(style)) <= 0)
+		return 0;
+	for (p = out = style; *p; p++)
+		if (*p != ' ')
+			*out++ = *p;
+	*out = 0;
+	return strstr(style, "display:none") != NULL;
+}
+
+/* One complete tag: name is just past the <, close at the > */
+static void handle_tag(layout_t *l, const char *name, const char *close, int ending)
+{
+	static const char *const paragraphs[] = {"p", "section", "article", "header", "footer",
+		"main", "nav", "aside", "table", "ul", "ol", "dl", "blockquote", "figure", NULL};
 	static const char *const breaks[] = {"br", "tr", "dt", "dd", NULL};
-	static const char *const skipped[] = {"script", "style", "svg", "noscript", "select",
-		"textarea", "iframe", NULL};
-	static const char *const skipped_end[] = {"</script", "</style", "</svg", "</noscript",
-		"</select", "</textarea", "</iframe"};
-	layout_t l;
-	word_t w;
-	int pre = 0, list_depth = 0, in_title = 0, title_len = 0, heading = 0, emphasis = 0, strong = 0;
-	memset(&l, 0, sizeof(l));
-	w.len = 0;
-	p->line_at[0] = 0;
-	l.p = p;
-	l.link = -1;
-	l.run_at = -1;
-	l.blank = 1;
-	while (s < end && !l.full) {
-		if (*s == '<') {
-			const char *name, *close = memchr(s, '>', (size_t)(end - s));
-			int ending, len;
+	int len;
+	for (len = 0; name + len < close && name[len] != ' ' && name[len] != '/' &&
+	     name[len] != '\n' && name[len] != '\t' && name[len] != '\r'; len++)
+		;
+	word_flush(l);
+	if (tag_is(name, len, "div")) {
+		if (l->hidden) {
+			l->hidden += ending ? -1 : 1;
+			return;
+		}
+		if (!ending && close[-1] != '/' && style_hides(name, close)) {
+			l->hidden = 1;
+			return;
+		}
+	}
+	if (tag_is(name, len, "title")) {
+		l->in_title = !ending;
+	} else if (tag_in(name, len, paragraphs)) {
+		paragraph(l);
+		if (tag_is(name, len, "ul") || tag_is(name, len, "ol") || tag_is(name, len, "blockquote")) {
+			l->list_depth += ending ? -1 : 1;
+			if (l->list_depth < 0)
+				l->list_depth = 0;
+			l->indent = (l->list_depth > 6 ? 6 : l->list_depth) * 2;
+		}
+	} else if (tag_in(name, len, breaks)) {
+		break_line(l);
+	} else if (tag_is(name, len, "div")) {
+		if (!l->in_cell) /* layout tables put a div around almost everything */
+			break_line(l);
+	} else if (tag_is(name, len, "td") || tag_is(name, len, "th")) {
+		l->in_cell = !ending;
+		l->space = 1;
+	} else if (tag_is(name, len, "li")) {
+		break_line(l);
+		if (!ending) {
+			int saved = l->indent;
+			l->indent = saved > 2 ? saved - 2 : 0;
+			put_word(l, (const uint8_t *)"* ", 2);
+			l->indent = saved;
+		}
+	} else if (len == 2 && (name[0] | 32) == 'h' && name[1] >= '1' && name[1] <= '6') {
+		paragraph(l);
+		l->heading = !ending;
+	} else if (tag_is(name, len, "hr")) {
+		static const uint8_t rule[] = "----------------------------------------";
+		paragraph(l);
+		put_word(l, rule, sizeof(rule) - 1);
+		paragraph(l);
+	} else if (tag_is(name, len, "pre")) {
+		paragraph(l);
+		l->pre = !ending;
+	} else if (tag_is(name, len, "b") || tag_is(name, len, "strong")) {
+		l->strong = !ending;
+	} else if (tag_is(name, len, "i") || tag_is(name, len, "em") || tag_is(name, len, "cite")) {
+		l->emphasis = !ending;
+	} else if (tag_is(name, len, "a")) {
+		if (ending) {
+			l->link = -1;
+		} else {
+			char href[MAX_URL];
+			int n = attr_copy(name, close, "href", href, sizeof(href));
+			l->link = n > 0 ? add_link(l, href, n) : -1;
+		}
+	} else if (tag_is(name, len, "form")) {
+		if (ending)
+			l->form = -1;
+		else
+			form_tag(l, name, close);
+		paragraph(l);
+	} else if (tag_is(name, len, "input") && !ending) {
+		input_tag(l, name, close);
+	} else if (tag_is(name, len, "textarea") && !ending) {
+		int index = add_field(l, FIELD_TEXT, name, close);
+		if (index >= 0)
+			put_text_box(l, index);
+		l->skip = "</textarea";
+	} else if (tag_is(name, len, "button")) {
+		if (ending) {
+			if (l->link & FIELD_LINK)
+				l->link = -1;
+			l->space = 1;
+		} else {
+			int index = add_field(l, FIELD_SUBMIT, name, close);
+			l->link = index >= 0 ? FIELD_LINK | index : -1;
+		}
+	} else if (tag_is(name, len, "meta") && !ending) {
+		meta_tag(l, name, close);
+	} else if (tag_is(name, len, "img") && !ending) {
+		const char *alt;
+		int n = attribute(name, close, "alt", &alt);
+		if (n > 0 && n < WEB_COLUMNS - 2) {
+			uint8_t text[WEB_COLUMNS];
+			text[0] = '[';
+			memcpy(text + 1, alt, (size_t)n);
+			text[n + 1] = ']';
+			put_word(l, text, n + 2);
+			l->space = 1;
+		}
+	}
+	update_style(l);
+}
+
+/* Skips towards l->skip. Returns where to carry on, or NULL if it needs more. */
+static const char *skip_towards(layout_t *l, const char *s, const char *end, int final)
+{
+	size_t n = strlen(l->skip);
+	for (; s + n <= end; s++) {
+		if (strncasecmp(s, l->skip, n))
+			continue;
+		s += n;
+		if (l->skip[n - 1] != '>') {
+			while (s < end && *s != '>')
+				s++;
+			if (s == end && !final)
+				return NULL;
+			if (s < end)
+				s++;
+		}
+		l->skip = NULL;
+		return s;
+	}
+	return final ? end : NULL;
+}
+
+/* Lays out what it can of [s, end) and returns how many bytes it used. The rest
+ * is an unfinished tag, entity or character, offered again with more after it. */
+static int layout_feed(layout_t *l, const char *start, const char *end, int final)
+{
+	static const char *const skipped[] = {"script", "style", "svg", "select", "iframe", NULL};
+	static const char *const skipped_end[] = {"</script", "</style", "</svg", "</select", "</iframe"};
+	const char *s = start;
+	page_t *p = l->p;
+	while (s < end && !l->full) {
+		if (l->skip) {
+			size_t keep = strlen(l->skip);
+			const char *next = skip_towards(l, s, end, final);
+			if (!next) {
+				/* Nothing here, bar the start of the closing text */
+				if ((size_t)(end - s) > keep)
+					s = end - keep;
+				break;
+			}
+			s = next;
+			continue;
+		}
+		if (*s == '<' && !l->plain) {
+			const char *name, *close;
+			int ending, i;
+			if (end - s < 4 && !final)
+				break;
 			if (!strncmp(s, "<!--", 4)) {
-				s = skip_past(s, end, "-->");
+				l->skip = "-->";
+				s += 4;
 				continue;
 			}
-			if (!close)
-				break;
+			close = memchr(s, '>', (size_t)(end - s));
+			if (!close) {
+				if (!final && end - s < WINDOW - RAW)
+					break;
+				l->skip = ">"; /* too long to hold, which is a tag nobody will miss */
+				continue;
+			}
 			name = s + 1;
 			ending = *name == '/';
 			name += ending;
-			for (len = 0; name + len < close && name[len] != ' ' && name[len] != '/' &&
-			     name[len] != '\n' && name[len] != '\t'; len++)
-				;
-			word_flush(&l, &w);
-			if (!ending) {
-				int i;
-				for (i = 0; skipped[i]; i++)
-					if (tag_is(name, len, skipped[i]))
-						break;
-				if (skipped[i]) {
-					s = skip_past(close, end, skipped_end[i]);
-					continue;
-				}
-			}
-			if (tag_is(name, len, "title")) {
-				in_title = !ending;
-			} else if (tag_in(name, len, paragraphs)) {
-				paragraph(&l);
-				if (tag_is(name, len, "ul") || tag_is(name, len, "ol") ||
-				    tag_is(name, len, "blockquote")) {
-					list_depth += ending ? -1 : 1;
-					if (list_depth < 0)
-						list_depth = 0;
-					l.indent = (list_depth > 6 ? 6 : list_depth) * 2;
-				}
-			} else if (tag_in(name, len, breaks)) {
-				break_line(&l);
-			} else if (tag_is(name, len, "td") || tag_is(name, len, "th")) {
-				l.space = 1;
-			} else if (tag_is(name, len, "li")) {
-				break_line(&l);
-				if (!ending) {
-					int saved = l.indent;
-					l.indent = saved > 2 ? saved - 2 : 0;
-					put_word(&l, (const uint8_t *)"* ", 2);
-					l.indent = saved;
-				}
-			} else if (len == 2 && (name[0] | 32) == 'h' && name[1] >= '1' && name[1] <= '6') {
-				paragraph(&l);
-				heading = !ending;
-			} else if (tag_is(name, len, "hr")) {
-				static const uint8_t rule[40] = "----------------------------------------";
-				paragraph(&l);
-				put_word(&l, rule, sizeof(rule));
-				paragraph(&l);
-			} else if (tag_is(name, len, "pre")) {
-				paragraph(&l);
-				pre = !ending;
-			} else if (tag_is(name, len, "b") || tag_is(name, len, "strong")) {
-				strong = !ending;
-			} else if (tag_is(name, len, "i") || tag_is(name, len, "em") || tag_is(name, len, "cite")) {
-				emphasis = !ending;
-			} else if (tag_is(name, len, "a")) {
-				if (ending) {
-					l.link = -1;
-				} else {
-					const char *href;
-					int n = attribute(name, close, "href", &href);
-					l.link = n > 0 ? add_link(&l, href, n) : -1;
-				}
-			} else if (tag_is(name, len, "img") && !ending) {
-				const char *alt;
-				int n = attribute(name, close, "alt", &alt);
-				if (n > 0 && n < WEB_COLUMNS - 2) {
-					uint8_t text[WEB_COLUMNS];
-					text[0] = '[';
-					memcpy(text + 1, alt, (size_t)n);
-					text[n + 1] = ']';
-					put_word(&l, text, n + 2);
-					l.space = 1;
-				}
-			}
-			l.style = l.link >= 0 ? STYLE_LINK : heading || strong ? STYLE_BOLD :
-				pre ? STYLE_CODE : emphasis ? STYLE_EM : STYLE_TEXT;
 			s = close + 1;
+			if (!ending) {
+				int len = (int)strcspn(name, " />\n\t\r");
+				for (i = 0; skipped[i]; i++)
+					if (tag_is(name, len, skipped[i])) {
+						word_flush(l);
+						l->skip = skipped_end[i];
+						break;
+					}
+				if (l->skip)
+					continue;
+			}
+			handle_tag(l, name, close, ending);
 			continue;
 		}
-		if (in_title) {
+		if (l->in_title) {
 			unsigned code = (unsigned char)*s;
-			int used = *s == '&' ? entity(s, end, &code) : 0;
+			int used;
+			if (*s == '&' && end - s < 10 && !final)
+				break;
+			used = *s == '&' ? entity(s, end, &code) : 0;
 			s += used ? used : 1;
-			if (title_len + 1 < (int)sizeof(p->title) && code >= ' ' && code < 256)
-				p->title[title_len++] = (char)code;
+			if (l->title_len + 1 < (int)sizeof(p->title) && code >= ' ' && code < 256)
+				p->title[l->title_len++] = (char)code;
 			continue;
 		}
 		if (*s == '\n' || *s == '\r' || *s == ' ' || *s == '\t') {
-			if (pre) {
+			if (l->pre || l->plain) {
 				if (*s == '\n') {
-					word_flush(&l, &w);
-					line_end(&l);
+					word_flush(l);
+					line_end(l);
 				} else if (*s != '\r') {
-					word_flush(&l, &w);
-					put_char(&l, ' ');
+					word_flush(l);
+					put_char(l, ' ');
 				}
 			} else {
-				word_flush(&l, &w);
-				l.space = 1;
+				word_flush(l);
+				l->space = 1;
 			}
 			s++;
 			continue;
 		}
-		if (*s == '&') {
+		if (*s == '&' && !l->plain) {
 			unsigned code;
-			int used = entity(s, end, &code);
+			int used;
+			if (end - s < 10 && !final)
+				break;
+			used = entity(s, end, &code);
 			if (used) {
-				put_code(&l, &w, code);
+				put_code(l, code);
 				s += used;
 				continue;
 			}
 		}
 		{
 			unsigned code;
+			if ((*s & 0x80) && end - s < 4 && !final)
+				break;
 			s += decode_utf8((const uint8_t *)s, (const uint8_t *)end, &code);
-			put_code(&l, &w, code);
+			put_code(l, code);
 		}
 	}
-	word_flush(&l, &w);
-	break_line(&l);
-	page_trim(p, l.used);
+	return (int)(s - start);
 }
 
-static void layout_text(page_t *p, const char *s, const char *end)
+static void layout_start(layout_t *l, page_t *p, int plain)
 {
-	char *wrapped = malloc((size_t)(end - s) + 12);
-	if (!wrapped)
-		return;
-	memcpy(wrapped, "<pre>", 5);
-	memcpy(wrapped + 5, s, (size_t)(end - s));
-	{
-		/* Plain text has no tags, so anything that looks like one is literal */
-		char *c;
-		for (c = wrapped + 5; c < wrapped + 5 + (end - s); c++)
-			if (*c == '<')
-				*c = '(';
+	memset(l, 0, sizeof(*l));
+	p->line_at[0] = 0;
+	p->lines = 0;
+	l->p = p;
+	l->link = -1;
+	l->run_at = -1;
+	l->blank = 1;
+	l->form = -1;
+	l->plain = plain;
+	l->pre = plain;
+	update_style(l);
+}
+
+static void layout_finish(layout_t *l)
+{
+	int cut = l->full;
+	l->full = 0;
+	l->finishing = 1;
+	l->hidden = 0;
+	word_flush(l);
+	if (cut) {
+		static const uint8_t note[] = "[Page cut short here]";
+		paragraph(l);
+		l->style = STYLE_EM;
+		l->link = -1;
+		put_word(l, note, sizeof(note) - 1);
 	}
-	layout_html(p, wrapped, wrapped + 5 + (end - s));
-	free(wrapped);
+	break_line(l);
+	page_trim(l->p, l->used, l->pool_used);
 }
 
 /* --- addresses --- */
@@ -639,7 +962,7 @@ static int conn_open(conn_t *c, const url_t *u)
 		rv = net_sock_connect(c->fd, ip, u->port);
 		if (rv == 0 || rv == -ERR_ISCONN)
 			break;
-		if (rv != -ERR_INPROGRESS && rv != -ERR_ALREADY && rv != -TRY_AGAIN) {
+		if (rv != -ERR_INPROGRESS && rv != -ERR_ALREADY && rv != -ERR_AGAIN) {
 			set_message(rv == -ERR_NOBUFS ? "Not enough memory to connect" : "Could not connect");
 			net_sock_close(c->fd);
 			return 0;
@@ -670,7 +993,7 @@ static int conn_write(conn_t *c, const char *data, int len)
 		if (n > 0) {
 			data += n;
 			len -= n;
-		} else if ((n == -TRY_AGAIN || n == -ERR_NOTCONN) && !conn_expired(c)) {
+		} else if ((n == -ERR_AGAIN || n == -ERR_NOTCONN) && !conn_expired(c)) {
 			plat_sleep_ms(RETRY_MS);
 		} else {
 			return 0;
@@ -686,7 +1009,7 @@ static int conn_read(conn_t *c, char *data, int len)
 		int n = c->tls ? plat_tls_read(c->tls, data, len) : net_sock_recv(c->fd, data, len);
 		if (n >= 0)
 			return n;
-		if (n != -TRY_AGAIN || conn_expired(c))
+		if (n != -ERR_AGAIN || conn_expired(c))
 			return -1;
 		plat_sleep_ms(RETRY_MS);
 	}
@@ -716,42 +1039,109 @@ static const char *header_value(const char *headers, const char *end, const char
 	return NULL;
 }
 
-/* Removes chunk framing in place */
-static int dechunk(char *body, int len)
+/* Chunked transfer undone as bytes arrive */
+typedef struct { int chunked, state, done; unsigned long left; long length; } body_t;
+enum { CHUNK_SIZE, CHUNK_DATA, CHUNK_END };
+
+/* Moves up to room bytes from raw to out. Sets *used for raw. */
+static int body_decode(body_t *b, const char *raw, int n, char *out, int room, int *used)
 {
-	char *in = body, *end = body + len, *out = body;
-	while (in < end) {
-		char *line = strstr(in, "\r\n");
-		unsigned long size;
-		if (!line)
-			break;
-		size = strtoul(in, NULL, 16);
-		in = line + 2;
-		if (!size)
-			break;
-		if (size > (unsigned long)(end - in))
-			size = (unsigned long)(end - in);
-		memmove(out, in, size);
-		out += size;
-		in += size + 2;
+	int in = 0, put = 0;
+	if (!b->chunked) {
+		put = n < room ? n : room;
+		if (b->length >= 0 && put > b->length)
+			put = (int)b->length;
+		memcpy(out, raw, (size_t)put);
+		if (b->length >= 0) {
+			b->length -= put;
+			b->done = b->length == 0;
+		}
+		*used = put;
+		return put;
 	}
-	return (int)(out - body);
+	while (in < n && put < room && !b->done) {
+		if (b->state == CHUNK_DATA) {
+			int take = n - in < room - put ? n - in : room - put;
+			if ((unsigned long)take > b->left)
+				take = (int)b->left;
+			memcpy(out + put, raw + in, (size_t)take);
+			in += take;
+			put += take;
+			b->left -= (unsigned long)take;
+			if (!b->left)
+				b->state = CHUNK_END;
+			continue;
+		}
+		if (b->state == CHUNK_END) {
+			if (raw[in++] == '\n')
+				b->state = CHUNK_SIZE;
+			continue;
+		}
+		{
+			char c = raw[in++];
+			int d = c >= '0' && c <= '9' ? c - '0' : (c | 32) >= 'a' && (c | 32) <= 'f' ? (c | 32) - 'a' + 10 : -1;
+			if (c == '\n') {
+				if (b->left)
+					b->state = CHUNK_DATA;
+				else
+					b->done = 1;
+			} else if (d >= 0 && !b->length) {
+				b->left = b->left * 16 + (unsigned long)d;
+			} else if (c != '\r') {
+				b->length = 1; /* a chunk extension: ignore up to the newline */
+			}
+			if (c == '\n')
+				b->length = 0;
+		}
+	}
+	*used = in;
+	return put;
 }
 
-/* 1 with a page in *p, 0 on failure, or 2 with *url updated for a redirect */
-static int parse_reply(char *url, char *buffer, int got, page_t *p)
+/* Pours the rest of the reply through the layout, starting with what's in raw */
+static void read_body(conn_t *c, body_t *b, layout_t *l, char *window, char *raw, int have)
 {
-	char *body, *headers_end;
-	const char *type, *value;
-	int status, length, chunked, plain;
-	buffer[got] = 0;
-	headers_end = strstr(buffer, "\r\n\r\n");
-	if (!headers_end || strncmp(buffer, "HTTP/1.", 7)) {
-		set_message(got ? "That isn't a web page" : "The site closed the link");
+	int waiting = 0, done = 0, n;
+	while (!l->full && !want) {
+		while (have > 0 && !l->full) {
+			int used, got = body_decode(b, raw, have, window + waiting, WINDOW - waiting, &used);
+			int fed;
+			have -= used;
+			memmove(raw, raw + used, (size_t)have);
+			waiting += got;
+			fed = layout_feed(l, window, window + waiting, 0);
+			waiting -= fed;
+			memmove(window, window + fed, (size_t)waiting);
+			if (!used && !got)
+				break;
+		}
+		if (done || b->done)
+			break;
+		n = conn_read(c, raw + have, RAW - have);
+		if (n <= 0)
+			done = 1;
+		else {
+			have += n;
+			body_bytes += n;
+		}
+		c->deadline = plat_wall_ms() + TIMEOUT_MS;
+		if (body_bytes)
+			set_message("Receiving");
+	}
+	layout_feed(l, window, window + waiting, 1);
+}
+
+/* What the headers say to do: 1 read a page, 2 redirected, 0 failed */
+static int read_headers(char *url, const char *head, const char *end, body_t *b, int *plain)
+{
+	const char *value, *type;
+	int status;
+	if (strncmp(head, "HTTP/1.", 7)) {
+		set_message("That isn't a web page");
 		return 0;
 	}
-	status = atoi(buffer + 9);
-	value = header_value(buffer, headers_end, "Location");
+	status = atoi(head + 9);
+	value = header_value(head, end, "Location");
 	if (status >= 300 && status < 400 && value) {
 		char target[MAX_URL], base[MAX_URL];
 		size_t len = strcspn(value, "\r\n");
@@ -763,48 +1153,29 @@ static int parse_reply(char *url, char *buffer, int got, page_t *p)
 		url_join(url, base, target);
 		return 2;
 	}
-	type = header_value(buffer, headers_end, "Content-Type");
-	if (type && strncasecmp(type, "text/", 5)) {
+	type = header_value(head, end, "Content-Type");
+	if (type && strncasecmp(type, "text/", 5) && strncasecmp(type, "application/xhtml", 17)) {
 		set_message("That's not a text page");
 		return 0;
 	}
-	plain = type && !strncasecmp(type, "text/plain", 10);
-	value = header_value(buffer, headers_end, "Transfer-Encoding");
-	chunked = value && !strncasecmp(value, "chunked", 7);
-	body = headers_end + 4;
-	length = got - (int)(body - buffer);
-	if (chunked)
-		length = dechunk(body, length);
-	if (plain)
-		layout_text(p, body, body + length);
-	else
-		layout_html(p, body, body + length);
+	*plain = type && !strncasecmp(type, "text/plain", 10);
+	memset(b, 0, sizeof(*b));
+	value = header_value(head, end, "Transfer-Encoding");
+	b->chunked = value && !strncasecmp(value, "chunked", 7);
+	value = header_value(head, end, "Content-Length");
+	b->length = !b->chunked && value ? atol(value) : b->chunked ? 0 : -1;
 	return 1;
 }
 
-static char *body_alloc(int *size)
+/* 1 with a page in *out, 0 on failure, or 2 with *url updated for a redirect */
+static int fetch_once(char *url, const char *post, page_t **out)
 {
-	static const int sizes[] = BODY_SIZES;
-	unsigned i;
-	for (i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
-		char *buffer = malloc((size_t)sizes[i]);
-		if (buffer) {
-			*size = sizes[i];
-			return buffer;
-		}
-	}
-	return NULL;
-}
-
-/* The same results as parse_reply */
-static int fetch_once(char *url, page_t *p)
-{
+	static layout_t l;
 	url_t u;
 	conn_t c;
-	char request[MAX_URL + 256];
-	char *buffer, *body, *headers_end;
-	const char *type, *value;
-	int got = 0, n, status, length, chunked, plain, size, result = 0;
+	body_t b;
+	char *request = NULL, *window = NULL, *raw = NULL, *headers_end = NULL;
+	int got = 0, n, plain = 0, result = 0;
 	if (!url_parse(url, &u)) {
 		set_message("That address isn't http or https");
 		return 0;
@@ -812,36 +1183,71 @@ static int fetch_once(char *url, page_t *p)
 	set_message("Connecting");
 	if (!conn_open(&c, &u))
 		return 0;
-	n = snprintf(request, sizeof(request),
-		"GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: DreamRISC/1.0 (RISC OS 3.11; Dreamcast)\r\n"
-		"Accept: text/html, text/plain\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n",
-		u.path, u.host);
-	/* Sockets and TLS take what they need first, as they can't make do with less */
-	buffer = body_alloc(&size);
-	if (!buffer) {
+	window = malloc(WINDOW + RAW + MAX_URL + MAX_QUERY + 300);
+	if (!window) {
 		set_message("Not enough memory");
 		conn_close(&c);
 		return 0;
 	}
+	raw = window + WINDOW;
+	request = raw + RAW;
+	if (post)
+		n = snprintf(request, MAX_URL + MAX_QUERY + 300, "POST %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: %s\r\n"
+			"Accept: text/html, text/plain\r\nAccept-Encoding: identity\r\nConnection: close\r\n"
+			"Content-Type: application/x-www-form-urlencoded\r\nContent-Length: %d\r\n\r\n%s",
+			u.path, u.host, USER_AGENT, (int)strlen(post), post);
+	else
+		n = snprintf(request, MAX_URL + MAX_QUERY + 300, "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: %s\r\n"
+			"Accept: text/html, text/plain\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n",
+			u.path, u.host, USER_AGENT);
 	set_message("Waiting for the site");
 	if (!conn_write(&c, request, n)) {
 		set_message("Could not send the request");
-		conn_close(&c);
-		free(buffer);
-		return 0;
+		goto done;
 	}
-	while (got < size - 1) {
-		n = conn_read(&c, buffer + got, size - 1 - got);
+	/* Headers land in the window, as a long Set-Cookie can outgrow raw */
+	while (!headers_end && got < WINDOW - 1) {
+		n = conn_read(&c, window + got, WINDOW - 1 - got);
 		if (n <= 0)
 			break;
 		got += n;
-		body_bytes = got;
-		set_message("Receiving");
+		window[got] = 0;
+		headers_end = strstr(window, "\r\n\r\n");
 	}
+	if (!headers_end) {
+		set_message(got ? "That isn't a web page" : "The site closed the link");
+		goto done;
+	}
+	result = read_headers(url, window, headers_end, &b, &plain);
+	if (result != 1)
+		goto done;
+	*out = page_new();
+	if (!*out) {
+		set_message("Not enough memory");
+		result = 0;
+		goto done;
+	}
+	{
+		int rest = got - (int)(headers_end + 4 - window);
+		memcpy(raw, headers_end + 4, (size_t)rest);
+		body_bytes = rest;
+		layout_start(&l, *out, plain);
+		read_body(&c, &b, &l, window, raw, rest);
+		layout_finish(&l);
+	}
+	if ((*out)->refresh[0] && (*out)->lines < 16) {
+		char base[MAX_URL];
+		snprintf(base, sizeof(base), "%s", url);
+		url_join(url, base, (*out)->refresh);
+		page_free(*out);
+		*out = NULL;
+		result = 2;
+	}
+done:
 	conn_close(&c);
-	if (!want)
-		result = parse_reply(url, buffer, got, p);
-	free(buffer);
+	free(window);
+	if (want)
+		result = 0;
 	return result;
 }
 
@@ -857,24 +1263,28 @@ static void publish(page_t *p, const char *url)
 	state = WEB_DONE;
 }
 
-static void load(char *url)
+static void load_about(char *url)
 {
+	static layout_t l;
 	page_t *p = page_new();
-	int tries, result = 0;
-	body_bytes = 0;
 	if (!p) {
 		set_message("Not enough memory");
-		printf("web: %s failed: %s\n", url, message);
 		state = WEB_FAILED;
 		return;
 	}
-	if (!strncmp(url, "about:", 6)) {
-		layout_html(p, home_page, home_page + sizeof(home_page) - 1);
-		publish(p, url);
-		return;
-	}
+	layout_start(&l, p, 0);
+	layout_feed(&l, home_page, home_page + sizeof(home_page) - 1, 1);
+	layout_finish(&l);
+	publish(p, url);
+}
+
+static void load(char *url, const char *post)
+{
+	page_t *p = NULL;
+	int tries, result = 0;
+	body_bytes = 0;
 	for (tries = 0; tries <= MAX_REDIRECTS; tries++) {
-		result = fetch_once(url, p);
+		result = fetch_once(url, tries ? NULL : post, &p);
 		if (result != 2)
 			break;
 	}
@@ -894,10 +1304,12 @@ static void *fetch_thread(void *arg)
 	(void)arg;
 	for (;;) {
 		if (want) {
-			char url[MAX_URL];
+			char url[MAX_URL], post[MAX_QUERY];
+			int is_post = want_body[0] != 0;
 			snprintf(url, sizeof(url), "%s", want_url);
+			snprintf(post, sizeof(post), "%s", want_body);
 			want = 0;
-			load(url);
+			load(url, is_post ? post : NULL);
 		}
 		plat_sleep_ms(20);
 	}
@@ -913,7 +1325,7 @@ static void request(const char *url, int keep_history)
 	if (!strncmp(url, "about:", 6)) {
 		char copy[MAX_URL];
 		snprintf(copy, sizeof(copy), "%s", url);
-		load(copy);
+		load_about(copy);
 		return;
 	}
 	if (!started) {
@@ -921,18 +1333,60 @@ static void request(const char *url, int keep_history)
 		plat_thread_start(fetch_thread);
 	}
 	snprintf(want_url, sizeof(want_url), "%s", url);
+	want_body[0] = 0;
 	state = WEB_BUSY;
 	set_message("Starting");
 	want = 1;
 }
 
+static void url_encode(char *out, size_t size, const char *text)
+{
+	static const char hex[] = "0123456789ABCDEF";
+	size_t n = strlen(out);
+	for (; *text && n + 4 < size; text++) {
+		unsigned char c = (unsigned char)*text;
+		if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+		    c == '-' || c == '_' || c == '.') {
+			out[n++] = (char)c;
+		} else if (c == ' ') {
+			out[n++] = '+';
+		} else {
+			out[n++] = '%';
+			out[n++] = hex[c >> 4];
+			out[n++] = hex[c & 15];
+		}
+	}
+	out[n] = 0;
+}
+
+/* Google's results need JavaScript, so its searches go somewhere that doesn't */
+static void search_elsewhere(char *url)
+{
+	const char *host = strstr(url, "://"), *q;
+	if (!host || strncmp(host + 3, "www.google.", 11) || !strstr(host, "/search?"))
+		return;
+	q = strstr(host, "?q=");
+	if (!q)
+		q = strstr(host, "&q=");
+	if (q) {
+		char copy[MAX_URL];
+		snprintf(copy, sizeof(copy), "%.*s", (int)strcspn(q + 3, "&"), q + 3);
+		snprintf(url, MAX_URL, "%s%s", SEARCH_URL, copy);
+	}
+}
+
 void web_open(const char *text)
 {
 	char url[MAX_URL];
-	if (strstr(text, "://") || !strncmp(text, "about:", 6))
+	if (strstr(text, "://") || !strncmp(text, "about:", 6)) {
 		snprintf(url, sizeof(url), "%s", text);
-	else
+	} else if (strchr(text, ' ') || !strchr(text, '.')) {
+		snprintf(url, sizeof(url), "%s", SEARCH_URL);
+		url_encode(url, sizeof(url), text);
+	} else {
 		snprintf(url, sizeof(url), "http://%s", text);
+	}
+	search_elsewhere(url);
 	request(url, 1);
 }
 
@@ -957,6 +1411,7 @@ int web_status(int *lines, int *bytes)
 		}
 		page_free(shown);
 		shown = p;
+		active_field = -1;
 	}
 	*lines = shown ? shown->lines : 0;
 	*bytes = body_bytes;
@@ -985,6 +1440,45 @@ int web_line(int line, uint8_t *out, int size)
 	return n;
 }
 
+/* Sends a form: every named field, plus the button that was pressed */
+static void submit(int form, int button)
+{
+	const form_t *f = &shown->forms[form];
+	char query[MAX_QUERY], url[MAX_URL];
+	int i;
+	query[0] = 0;
+	for (i = 0; i < shown->field_count; i++) {
+		const field_t *field = &shown->fields[i];
+		if (field->form != form || field->name == NO_LINK ||
+		    (field->kind == FIELD_SUBMIT && i != button))
+			continue;
+		if (query[0])
+			strncat(query, "&", sizeof(query) - strlen(query) - 1);
+		url_encode(query, sizeof(query), shown->link_pool + field->name);
+		strncat(query, "=", sizeof(query) - strlen(query) - 1);
+		if (field->value != NO_LINK)
+			url_encode(query, sizeof(query), shown->link_pool + field->value);
+	}
+	url_join(url, shown->url, f->action == NO_LINK ? "" : shown->link_pool + f->action);
+	if (f->post) {
+		request(url, 1);
+		if (want) { /* about: never posts */
+			want = 0;
+			snprintf(want_body, sizeof(want_body), "%s", query);
+			want = 1;
+		}
+	} else {
+		char *mark = strchr(url, '?');
+		size_t n;
+		if (mark)
+			*mark = 0;
+		n = strlen(url);
+		snprintf(url + n, sizeof(url) - n, "?%s", query);
+		search_elsewhere(url);
+		request(url, 1);
+	}
+}
+
 int web_click(int line, int column)
 {
 	const uint8_t *t, *end;
@@ -995,12 +1489,51 @@ int web_click(int line, int column)
 	while (t < end) {
 		int link = (t[3] << 8) | t[4];
 		if (column >= t[0] && column < t[0] + t[1] && link != NO_LINK) {
-			char url[MAX_URL];
-			url_join(url, shown->url, shown->link_pool + shown->link_at[link]);
-			request(url, 1);
+			if (link & FIELD_LINK) {
+				int index = link & ~FIELD_LINK;
+				if (shown->fields[index].kind == FIELD_TEXT) {
+					active_field = index;
+					return 2;
+				}
+				submit(shown->fields[index].form, index);
+			} else {
+				char url[MAX_URL];
+				url_join(url, shown->url, shown->link_pool + shown->link_at[link]);
+				search_elsewhere(url);
+				request(url, 1);
+			}
 			return 1;
 		}
 		t += RUN_HEADER + t[1];
 	}
 	return 0;
+}
+
+void web_field_get(char *text, int size)
+{
+	const field_t *f = active_field >= 0 ? &shown->fields[active_field] : NULL;
+	snprintf(text, (size_t)size, "%s", f && f->value != NO_LINK ? shown->link_pool + f->value : "");
+}
+
+/* Stores the text in the page, shows it, and presses the form's first button */
+void web_field_set(const char *text)
+{
+	field_t *f;
+	char *value;
+	int i;
+	if (active_field < 0 || !shown)
+		return;
+	f = &shown->fields[active_field];
+	if (f->value == NO_LINK)
+		return;
+	value = shown->link_pool + f->value;
+	snprintf(value, VALUE_MAX, "%s", text);
+	for (i = 0; i < f->width; i++)
+		shown->text[f->text_at + (uint32_t)i] = i < (int)strlen(value) ? (uint8_t)value[i] : ' ';
+	for (i = 0; i < shown->field_count; i++)
+		if (shown->fields[i].form == f->form && shown->fields[i].kind == FIELD_SUBMIT) {
+			submit(f->form, i);
+			return;
+		}
+	submit(f->form, -1);
 }

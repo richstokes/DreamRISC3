@@ -9,7 +9,7 @@
 #define WEB_COLUMNS 76
 
 enum { WEB_IDLE, WEB_BUSY, WEB_DONE, WEB_FAILED };
-enum { STYLE_TEXT, STYLE_BOLD, STYLE_LINK, STYLE_EM, STYLE_CODE };
+enum { STYLE_TEXT, STYLE_BOLD, STYLE_LINK, STYLE_EM, STYLE_CODE, STYLE_FIELD };
 
 /* Shared with BASIC */
 typedef struct {
@@ -23,7 +23,9 @@ void web_back(void);
 int web_status(int *lines, int *bytes);
 void web_info(web_info_t *info);
 int web_line(int line, uint8_t *out, int size); /* bytes of runs, see web.c */
-int web_click(int line, int column);            /* 1 if that was a link */
+int web_click(int line, int column);            /* 1 went somewhere, 2 a text box */
+void web_field_get(char *text, int size);
+void web_field_set(const char *text);           /* also submits its form */
 
 /* A connection: TCP on both platforms, TLS only where the platform has it */
 typedef struct web_tls web_tls_t;

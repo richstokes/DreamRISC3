@@ -12,7 +12,8 @@ enum {
 	DN_STATUS, DN_CONNECT, DN_DISCONNECT, DN_PING, DN_PING_RESULT, DN_RESOLVE,
 	DN_RESOLVE_RESULT, DN_GET_CONFIG, DN_SAVE_CONFIG, DN_SOCK_OPEN, DN_SOCK_BIND,
 	DN_SOCK_CONNECT, DN_SOCK_SEND, DN_SOCK_RECV, DN_SOCK_SENDTO, DN_SOCK_RECVFROM,
-	DN_SOCK_CLOSE, DN_WEB_OPEN, DN_WEB_BACK, DN_WEB_STATUS, DN_WEB_INFO, DN_WEB_LINE, DN_WEB_CLICK,
+	DN_SOCK_CLOSE, DN_WEB_OPEN, DN_WEB_BACK, DN_WEB_STATUS, DN_WEB_INFO, DN_WEB_LINE, DN_WEB_CLICK, DN_WEB_FIELD_GET,
+	DN_WEB_FIELD_SET,
 };
 
 #define ERR_INVAL 22
@@ -215,6 +216,14 @@ void net_swi(u32 op)
 		break;
 	case DN_WEB_CLICK:
 		result = web_click((int)R(0), (int)R(1));
+		break;
+	case DN_WEB_FIELD_GET:
+		web_field_get(url, sizeof(url));
+		guest_write(R(0), url, (u32)strlen(url) + 1);
+		break;
+	case DN_WEB_FIELD_SET:
+		guest_string(R(0), url, sizeof(url));
+		web_field_set(url);
 		break;
 	default:
 		result = -ERR_INVAL;

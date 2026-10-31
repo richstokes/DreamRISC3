@@ -1,7 +1,10 @@
 Web is a small text web browser. Type an address and press Return, click
 links to follow them, and use Back to go back.
 
-It shows text only: no pictures, styles, scripts or forms. Secure (https) sites
+Type words instead of an address to search. Click a text box on a page to fill
+it in, and press Return to send it. Up, Down, Page Up and Page Down scroll.
+
+It shows text only: no pictures, styles or scripts, and there are no logins. Secure (https) sites
 are encrypted but not verified, so don't type anything private.
 
 Closing the window leaves Web on the icon bar. Click it to reopen, or use its

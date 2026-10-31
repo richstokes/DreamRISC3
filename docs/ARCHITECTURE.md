@@ -173,12 +173,15 @@ Flycast (10/31): `!Ping` launched by replay and ran through the real KOS driver 
 
 `!Web` is written from scratch. NetSurf is the obvious port, but it's far too big for 4MB of guest RAM, and every ARM binary it needs would have to go through the recompiler. A BASIC app can't lay out a page at a usable speed, so the split matches the network layer: `src/web.c` is native and runs on its own thread, and the app only draws lines it has already laid out, through SWIs +17 to +22 (Open, Back, Status, Info, Line, Click).
 
-- Pages become a fixed grid in the system font, as lines of styled runs. Text, links, headings, lists, tables as rows, `pre`, entities, UTF-8 folded to Latin-1. No images, CSS, scripts or forms
-- HTTP/1.1 with redirects and chunked bodies. HTTPS is mbedTLS from kos-ports
+- Pages become a fixed grid in the system font, as lines of styled runs. Text, links, headings, lists, tables as rows, `pre`, entities, UTF-8 folded to Latin-1. No images, CSS or scripts
+- HTTP/1.1 with redirects, meta refresh and chunked bodies, parsed as they arrive. Google's home page is ~87KB of mostly script, so buffering first left nothing visible. Now raw page size doesn't matter, only how much text there is. HTTPS is mbedTLS from kos-ports
+- Forms: text boxes, hidden fields and buttons, GET and POST. Clicking a text box opens a small editor and Return submits. No checkboxes, radios or selects, and no cookies, so no logins
+- Words in the address bar search with DuckDuckGo Lite. Google's results need JavaScript, which no browser here can run, so searches from its box go to DuckDuckGo too (`search_elsewhere`)
+- Up and Down scroll a few lines, Page Up and Down a screen
 - **Certificates are not checked.** There's no CA store and no trusted clock, so HTTPS stops a passive listener but doesn't prove who you're talking to. Fine for reading, not for anything private, and the home page says so
-- Memory: mbedTLS adds ~410KB of code, so only ~400KB of heap is free without an SD card (the floppy image costs 0.8MB) and ~1.2MB with one. Connections are set up before the page buffer, which falls back from 96KB to 32KB. Longer pages are cut short
+- Memory: mbedTLS adds ~410KB of code, so only ~300KB of heap is usable without an SD card (the floppy image costs 0.8MB) and ~1.2MB with one. Connections are set up first, then the page takes the largest of 256KB to 32KB of text that leaves room for the network. That is ~700 lines at the bottom end, and a longer page stops with a note. Eight page loads in a row in Flycast showed no leak
 
-The harness has no TLS, but its sockets are real: `tests/webserver.py` serves a redirect, chunked text and a link. Replays in the checked set only use the built-in `about:home`, so they need no server.
+The harness has no TLS, but its sockets are real: `tests/webserver.py` serves a redirect, chunked text, links, forms, a 300KB script and a very long page. Replays in the checked set only use the built-in `about:home`, so they need no server.
 
 Things that bit us:
 
@@ -188,6 +191,8 @@ Things that bit us:
 - In BASIC an uppercase name starting with a keyword tokenises as that keyword, so `LINEH` is `LINE H`
 
 Console (10/31), real BBA under dcload, with the fetch started natively: info.cern.ch, and over HTTPS example.com, text.npr.org and en.wikipedia.org (cut at 96KB, 352 lines), with the desktop running throughout. Without an SD card, Flycast fetched https://dcvmu.com/ (270 lines). One earlier Flycast run died in its own process during a fetch, which hasn't happened since.
+
+Flycast (10/31), no SD card, the real internet: Google's home page with its search box, a typed search with full results, Hacker News and 734 lines of Wikipedia's Dreamcast article.
 
 Open question: this is the same launch problem as `!Ping`. Under dcload a scripted launch of `!Web` didn't come up in 2 of 2 runs (`Filer_Run` and `WimpTask` alike), so the app and the fetch have not yet run together on a console. Needs a run from GDEMU with no dcload.
 
