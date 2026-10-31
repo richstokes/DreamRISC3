@@ -1,16 +1,16 @@
-tests/apps.replay 136 1175A02D
-tests/overlays.replay 126 2A183C82
+tests/apps.replay 136 0B773265
+tests/overlays.replay 126 5CA09D76
 tests/draw.replay 182 7CB7EE71
 tests/adfs-open.replay 94 D8AB0E13 build/test.adf
 tests/lander.replay 122 458BB8B3
 tests/lander-exit.replay 156 A313E947
-tests/sound.replay 97 CED49B9F
-tests/hd.replay 180 782D1557 - build/test-hd.img
+tests/sound.replay 97 B458E83A
+tests/hd.replay 180 9EDD0FE3 - build/test-hd.img
 tests/ping.replay 102 DFCA821F
-tests/netsetup.replay 90 0A743DC6
-tests/tertis.replay 132 896500EB
-tests/tertis-exit.replay 152 6E9B916C
-tests/web.replay 98 BC1BCB22
+tests/netsetup.replay 90 164FEE5A
+tests/tertis.replay 132 84316116
+tests/tertis-exit.replay 152 F8544D6E
+tests/web.replay 98 79CF2A96
 tests/logo-lang.replay 772 26737549 build/test.adf
 tests/logo-ui.replay 196 DE19674D
-tests/web-iconbar.replay 124 00000000
+tests/web-iconbar.replay 124 14CF8989
