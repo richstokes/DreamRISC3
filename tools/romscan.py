@@ -216,6 +216,11 @@ def sweep(rom, modules, code):
     is_branch = lambda pc: word(rom, pc) >> 24 == 0xEA
     code |= walk(rom, [pc for start, end in regions for pc in range(start, end - 8, 4)
                        if is_branch(pc) and (is_branch(pc + 4) or is_branch(pc - 4))])
+    # So is one interleaved with numbers, as in a Wimp message handler table.
+    in_region = lambda pc: any(start <= pc < end for start, end in regions)
+    target = lambda pc: pc + 8 + (((word(rom, pc) & 0xFFFFFF) ^ 0x800000) - 0x800000) * 4
+    code |= walk(rom, [pc for start, end in regions for pc in range(start, end - 8, 4)
+                       if is_branch(pc) and in_region(target(pc)) and plausible(rom, target(pc), 3)])
     # Handlers reached through relative tables nearly always begin by saving lr.
     code |= walk(rom, [pc for start, end in regions for pc in range(start, end, 4)
                        if word(rom, pc) & 0xFFFF4000 == 0xE92D4000 and plausible(rom, pc, 3)])

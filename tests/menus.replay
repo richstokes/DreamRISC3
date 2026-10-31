@@ -1,0 +1,134 @@
+# Open the Task, palette, floppy, Apps and Filer window menus and their submenus.
+70.0 move -1000 -1000
+71.5 move 55 297
+73.0 button 1
+73.2 button 0
+79.0 move -1000 -1000
+80.5 move 408 300
+82.0 button 2
+82.2 button 0
+84.0 move -1000 -1000
+85.5 move 373 207
+87.0 button 1
+87.2 button 0
+91.0 shot build/m1.ppm
+91.5 move -1000 -1000
+93.0 move 408 300
+94.5 button 2
+94.7 button 0
+96.5 move -1000 -1000
+98.0 move 420 177
+99.5 button 1
+99.7 button 0
+101.5 shot build/m2.ppm
+102.0 key 0 0 1
+102.1 key 0 0 0
+103.0 move -1000 -1000
+104.5 move 408 300
+106.0 button 2
+106.2 button 0
+108.0 move -1000 -1000
+109.5 move 420 192
+111.0 button 1
+111.2 button 0
+113.0 shot build/m3.ppm
+113.5 key 0 0 1
+113.6 key 0 0 0
+114.5 move -1000 -1000
+116.0 move 408 300
+117.5 button 2
+117.7 button 0
+119.5 move -1000 -1000
+121.0 move 420 251
+122.5 button 1
+122.7 button 0
+124.5 shot build/m4.ppm
+125.0 key 0 0 1
+125.1 key 0 0 0
+126.0 move -1000 -1000
+127.5 move 381 300
+129.0 button 2
+129.2 button 0
+131.0 shot build/m5.ppm
+131.5 move -1000 -1000
+133.0 move 413 220
+134.5 button 1
+134.7 button 0
+136.5 shot build/m6.ppm
+137.0 key 0 0 1
+137.1 key 0 0 0
+138.0 move -1000 -1000
+139.5 move 20 297
+141.0 button 2
+141.2 button 0
+143.0 shot build/m7.ppm
+143.5 move -1000 -1000
+145.0 move 80 227
+146.5 button 1
+146.7 button 0
+148.5 shot build/m8.ppm
+149.0 key 0 0 1
+149.1 key 0 0 0
+150.0 move -1000 -1000
+151.5 move 55 297
+153.0 button 2
+153.2 button 0
+155.0 shot build/m9.ppm
+155.5 key 0 0 1
+155.6 key 0 0 0
+156.5 move -1000 -1000
+158.0 move 133 80
+159.5 button 2
+159.7 button 0
+161.5 shot build/m10.ppm
+162.0 move -1000 -1000
+163.5 move 220 113
+165.0 button 1
+165.2 button 0
+167.0 shot build/m11.ppm
+167.5 key 0 0 1
+167.6 key 0 0 0
+168.5 move -1000 -1000
+170.0 move 133 80
+171.5 button 2
+171.7 button 0
+173.5 move -1000 -1000
+175.0 move 220 127
+176.5 button 1
+176.7 button 0
+178.5 shot build/m12.ppm
+179.0 key 0 0 1
+179.1 key 0 0 0
+180.0 move -1000 -1000
+181.5 move 133 80
+183.0 button 2
+183.2 button 0
+185.0 move -1000 -1000
+186.5 move 220 157
+188.0 button 1
+188.2 button 0
+190.0 shot build/m13.ppm
+190.5 key 0 0 1
+190.6 key 0 0 0
+191.5 move -1000 -1000
+193.0 move 133 80
+194.5 button 2
+194.7 button 0
+196.5 move -1000 -1000
+198.0 move 193 141
+199.5 button 1
+199.7 button 0
+202.5 shot build/m14.ppm
+203.0 key 0 0 1
+203.1 key 0 0 0
+204.0 move -1000 -1000
+205.5 move 133 80
+207.0 button 2
+207.2 button 0
+209.0 move -1000 -1000
+210.5 move 193 172
+212.0 button 1
+212.2 button 0
+214.0 shot build/m15.ppm
+214.5 key 0 0 1
+214.6 key 0 0 0

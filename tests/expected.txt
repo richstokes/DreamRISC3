@@ -15,3 +15,5 @@ tests/logo-lang.replay 772 26737549 build/test.adf
 tests/logo-ui.replay 196 DE19674D
 tests/web-iconbar.replay 124 2B252EB9
 tests/drag.replay 107 C841A194
+tests/taskwindow.replay 94 93FE9DB4
+tests/menus.replay 217 F1A17D89
