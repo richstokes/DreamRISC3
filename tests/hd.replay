@@ -1,0 +1,11 @@
+# With a formatted hard disc: look at it, write to it, list it.
+70 key 0 12 1
+70.1 key 0 12 0
+73 type cat adfs::4.$\n
+84 type cdir adfs::4.$.Work\n
+92 type spool adfs::4.$.Work.Note\n
+100 type echo Hello from the SD card\n
+110 type spool\n
+116 type cat adfs::4.$\n
+126 type verify 4\n
+176 shot build/h1.ppm

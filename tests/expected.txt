@@ -5,3 +5,4 @@ tests/adfs-open.replay 94 D8AB0E13 build/test.adf
 tests/lander.replay 122 465A9EA7
 tests/lander-exit.replay 156 A313E947
 tests/sound.replay 97 191324C0
+tests/hd.replay 180 ACF1EA89 - build/test-hd.img

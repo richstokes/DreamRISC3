@@ -165,6 +165,19 @@ void fdc_latch_a(u32 value);
 void fdc_latch_b(u32 value);
 int fdc_ready(void);
 u8 *fdc_image(void);
+
+/* IDE drive (ide.c) and the formatter (hdformat.c) */
+#define HD_HEADS 16
+#define HD_SPT 63
+void ide_init(u32 sectors);
+void ide_tick(uint64_t now);
+int ide_owns(u32 addr);
+u32 ide_read(u32 addr, int word);
+void ide_write(u32 addr, u32 value, int word);
+int hd_is_formatted(void);
+int hd_format(u32 sectors);
+void mach_irqb(u32 bits);
+void mach_irqb_clear(u32 bits);
 void mach_fiq(u32 bits);
 void mach_fiq_clear(u32 bits);
 
@@ -173,6 +186,10 @@ uint64_t plat_time_us(void);
 void plat_rom_read(u32 page, u8 *dest); /* one 32KB ROM page; may block on disc */
 const ov_header_t *plat_overlay_load(int unit); /* may block on disc */
 u8 *plat_disc_load(u32 bytes); /* the ADFS image in RAM, or NULL for an empty drive */
+u32 plat_hd_sectors(void);      /* 0 when no hard disc is attached */
+int plat_hd_read(u32 lba, u8 *dest);
+int plat_hd_write(u32 lba, const u8 *src);
+int plat_hd_prepare(void);      /* offers to format; 0 leaves the disc unusable */
 void plat_frame(const screen_t *screen);
 void plat_poll_input(void);
 void plat_sound(const s16 *stereo, int frames, int rate); /* interleaved left, right */

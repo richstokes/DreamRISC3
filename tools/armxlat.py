@@ -26,6 +26,12 @@ OVERLAYS = {
              "BBCEconet", "DOSFS", "Debugger", "Portable", "SerialDeviceDriver",
              "SerialDeviceSupport", "ParallelDeviceDriver", "Podule"},
 }
+# Instructions changed when recompiling; the ROM data itself stays as it is.
+ROM_PATCHES = {
+    # ADFS only starts IDE on IOEB machines or if a podule claims it. This machine
+    # reports old-style I/O so the floppy driver stays WD1772, so skip that check.
+    0xE1470: (0x1A000003, 0xE1A00000),
+}
 RAM_IMAGES = {"WaveSynth", "StringLib", "Percussion"}
 ROM_BYTES = 0x200000
 CHUNK = 3000
@@ -665,8 +671,12 @@ def main():
     parser.add_argument("--ram-words", help="text file of extra RAM instruction words")
     args = parser.parse_args()
     image = Path(args.rom).read_bytes()
-    rom = image[:ROM_BYTES]
+    rom = bytearray(image[:ROM_BYTES])
     apps = load_apps(Path(args.rom).parent / "upstream")
+    for offset, (old, new) in ROM_PATCHES.items():
+        if word(rom, offset) != old:
+            raise SystemExit(f"ROM patch at {offset:#x} does not match this ROM")
+        struct.pack_into("<I", rom, offset, new)
     extra = []
     if args.seeds and Path(args.seeds).exists():
         for line in Path(args.seeds).read_text().split("\n"):

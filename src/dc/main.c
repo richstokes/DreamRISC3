@@ -3,6 +3,7 @@
 #include <kos.h>
 #include <dc/sq.h>
 #include <dc/sound/stream.h>
+#include <dc/sd.h>
 #include <arch/cache.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -22,6 +23,7 @@ extern const u8 cmos_image[];
 static u32 line_sum[2][MAX_LINES];
 static int back_fb;
 static uint16_t *fb_addr[2];
+static void clear_buffers(void);
 static u32 wrapped[160];
 static uint16_t row[640] __attribute__((aligned(32)));
 static uint16_t lut[256];
@@ -95,12 +97,111 @@ void plat_rom_read(u32 page, u8 *dest)
 		plat_fatal("short read of ROM page %lu\n", (unsigned long)page);
 }
 
+static u32 sd_sectors;
+
+/* No card usually means init fails quickly, and the machine runs from the floppy. */
+static void sd_open(void)
+{
+	sd_init_params_t params = {.interface = SD_IF_SCIF, .check_crc = true};
+	const char *console = dbgio_dev_get();
+	uint64_t bytes;
+	/* The probe takes over SCIF, so nothing may log through it meanwhile */
+	dbgio_dev_select("null");
+	if (sd_init_ex(&params)) {
+		if (console)
+			dbgio_dev_select(console);
+		return;
+	}
+	bytes = sd_get_size();
+	if (bytes == (uint64_t)-1 || bytes < 16 * 1024 * 1024) {
+		sd_shutdown();
+		if (console)
+			dbgio_dev_select(console);
+		return;
+	}
+	/* The serial port is now the SPI bus. Keep dcload's console, which is network */
+	if (console && strcmp(console, "scif"))
+		dbgio_dev_select(console);
+	bytes /= 512;
+	sd_sectors = bytes > 0xFFFFFFFFu ? 0xFFFFFFFFu : (u32)bytes;
+	printf("SD card: %lu sectors\n", (unsigned long)sd_sectors);
+}
+
+u32 plat_hd_sectors(void)
+{
+	return sd_sectors;
+}
+
+int plat_hd_read(u32 lba, u8 *dest)
+{
+	return sd_read_blocks(lba, 1, dest);
+}
+
+int plat_hd_write(u32 lba, const u8 *src)
+{
+	return sd_write_blocks(lba, 1, src);
+}
+
+/* Either buffer may be on screen, so prompts go to both */
+static void show_line(int row, const char *text)
+{
+	bfont_draw_str(fb_addr[0] + 640 * (120 + row * 28) + 64, 640, 1, text);
+	bfont_draw_str(fb_addr[1] + 640 * (120 + row * 28) + 64, 640, 1, text);
+}
+
+/* A or Y formats, B or N leaves the card alone for this session. */
+static int ask_format(void)
+{
+	clear_buffers();
+	show_line(0, "This SD card is not formatted for RISC OS.");
+	show_line(2, "Formatting ERASES EVERYTHING on the card.");
+	show_line(4, "A or Y: format as an ADFS hard disc");
+	show_line(5, "B or N: start without it");
+#ifdef HW_AUTOFORMAT
+	return 1;
+#endif
+	for (;;) {
+		maple_device_t *dev = maple_enum_type(0, MAPLE_FUNC_CONTROLLER);
+		maple_device_t *kbd = maple_enum_type(0, MAPLE_FUNC_KEYBOARD);
+		cont_state_t *c = dev ? maple_dev_status(dev) : NULL;
+		kbd_state_t *k = kbd ? kbd_get_state(kbd) : NULL;
+		if ((c && (c->buttons & CONT_A)) || (k && k->key_states[KBD_KEY_Y].is_down))
+			return 1;
+		if ((c && (c->buttons & CONT_B)) || (k && k->key_states[KBD_KEY_N].is_down))
+			return 0;
+		thd_sleep(50);
+	}
+}
+
+int plat_hd_prepare(void)
+{
+	int ok = 1, state = hd_is_formatted();
+	if (state)
+		return state > 0; /* unreadable: leave the card alone */
+	if (!ask_format()) {
+		ok = 0;
+	} else {
+		clear_buffers();
+		show_line(0, "Formatting SD card...");
+		if (hd_format(sd_sectors)) {
+			show_line(2, "Format failed.");
+			thd_sleep(3000);
+			ok = 0;
+		}
+	}
+	clear_buffers();
+	return ok;
+}
+
 u8 *plat_disc_load(u32 bytes)
 {
 	char path[192];
-	u8 *image = memalign(32, bytes);
+	u8 *image;
 	file_t f;
 	int pass;
+	if (sd_sectors)
+		return NULL; /* the card takes over, and the 800KB goes back to the heap */
+	image = memalign(32, bytes);
 	for (pass = 0, f = FILEHND_INVALID; pass < 2 && f == FILEHND_INVALID; pass++) {
 		snprintf(path, sizeof(path), pass ? "/pc%s/adfs.adf" : "/cd/adfs.adf", PC_ROOT);
 		f = fs_open(path, O_RDONLY);
@@ -524,7 +625,22 @@ static void replay_step(int *dx, int *dy, int *buttons)
 			replay_dy += e->b;
 		} else if (e->verb == 'b') {
 			replay_buttons = e->a;
+		} else if (e->verb == 'k') {
+			mach_key(e->a >> 8, e->a & 15, e->b);
 		} else {
+			char path[192];
+			file_t f;
+			snprintf(path, sizeof(path), "/pc%s/../screen%d.bin", PC_ROOT, e->a);
+			f = fs_open(path, O_WRONLY | O_CREAT | O_TRUNC);
+			if (f != FILEHND_INVALID) {
+				u32 bytes = (u32)(replay_screen.width * replay_screen.height * replay_screen.bpp / 8);
+				u32 head = replay_screen.end - replay_screen.start;
+				if (head > bytes)
+					head = bytes;
+				fs_write(f, replay_screen.ram + replay_screen.start, head);
+				fs_write(f, replay_screen.ram + replay_screen.base, bytes - head);
+				fs_close(f);
+			}
 			printf("replay checkpoint %d sum=%08lX\n", e->a,
 				(unsigned long)mach_screen_sum(&replay_screen));
 			dump_screen(e->a);
@@ -599,6 +715,7 @@ int main(int argc, char **argv)
 	back_fb = 1;
 	clear_buffers();
 	sound_start();
+	sd_open();
 	mach_init(cmos_image);
 	mach_run(0);
 	return 0;

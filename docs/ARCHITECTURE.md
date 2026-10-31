@@ -93,6 +93,25 @@ Harness: `DREAM_WAV` records output. `tests/sound.replay` plays middle C from BA
 
 Console check (10/31, Flycast only): checkpoints matched the harness, and over 60s the ring stayed in step at 20.8kHz with no gaps after start up. Nobody has listened to it yet.
 
+## SD hard disc
+
+`src/ide.c` is a native ATA drive at the IDE registers ROM ADFS already drives (`0x30107C0`, IOC IRQB bit 3). Sectors map 1:1 onto SD blocks, read with KOS's `sd_read_blocks`. At boot, a detected card sets `IDEDiscs` in CMOS (top bits of byte 0x87, checksum at 0x3F) and the floppy image is not loaded.
+
+ROM patch: ADFS only starts IDE on IOEB machines or if a podule claims it, and reporting IOEB would move the floppy to the 82C711 path. So `tools/armxlat.py` NOPs that one branch at recompile time, and checks the old word first.
+
+`src/hdformat.c` writes the disc, as HForm is not in ROM: 120 zones, 1K map units, ~476MB. Map and directory checksums were checked against a disc RISC OS formatted itself. `*verify 4` passes, on the harness and on a real 4GB card.
+
+Things that bit us:
+
+- ADFS reads sector 1 by polling with nIEN set, then re-enables interrupts and waits. The drive has to latch an interrupt raised while masked, or the transfer hangs
+- A read failure must never count as "unformatted". `hd_is_formatted()` returns -1 for that, and only a readable, wrong boot block offers to format
+
+Console results (10/31): real card formatted, written, power cycled and read back, with `Work` still there and every checkpoint matching the harness. Boot block detection was stable over 4 more power cycles.
+
+Unresolved: during bring-up the second boot looked freshly formatted, which suggests the first check said "not formatted" on a card that had just been formatted. That build could format unattended. I never found out why and it has not recurred, but treat it as open while the card holds anything you care about.
+
+Not tested: the format prompt on a real controller or keyboard (hardware tests use `HW_AUTOFORMAT`), SD speed under load, and pulling the card out while running.
+
 ## Considerations
 
 - Size: ~1.2MB of ARM becomes ~8.5MB of SH-4 plus ~1MB of tables, so ~7x. Out-of-line memory helpers and whole-ROM flag liveness are already in, and the latter only saved ~1%
@@ -130,5 +149,5 @@ Console and harness checkpoints stop matching in Lander once it moves, because r
 ## Next Steps
 
 1. Look at the real screen, try physical keyboard and mouse, and catch the boot hang if it recurs
-2. Persist saves: write the disc image to SD, or at least a small area to VMU
+2. Use more of the card: FileCore in 3.11 tops out near 512MB per disc, so maybe several drives
 3. Listen to the sound on a console, and check mode 27 on a TV as well as VGA

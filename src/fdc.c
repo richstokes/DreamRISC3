@@ -321,5 +321,5 @@ void fdc_init(void)
 {
 	f.status = ST_MOTOR;
 	f.step_dir = 1;
-	f.image = plat_disc_load(DISC_BYTES);
+	f.image = plat_disc_load(DISC_BYTES); /* platforms skip this when an SD card holds the data */
 }

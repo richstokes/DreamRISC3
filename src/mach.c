@@ -394,6 +394,17 @@ static int irq_pending(void)
 	return ((ioc.irqa | 0x80) & ioc.mska) || (ioc.irqb & ioc.mskb);
 }
 
+void mach_irqb(u32 bits)
+{
+	ioc.irqb |= (u8)bits;
+	update_irq();
+}
+
+void mach_irqb_clear(u32 bits)
+{
+	ioc.irqb &= (u8)~bits;
+}
+
 void mach_fiq(u32 bits)
 {
 	ioc.fiq |= (u8)bits;
@@ -747,6 +758,8 @@ static u32 io_read(u32 a, int word)
 {
 	if (priv != PRIV_SUPER)
 		data_abort(a);
+	if (ide_owns(a))
+		return ide_read(a, word);
 	switch ((a >> 16) & 7) {
 	case 0:
 		if (a & (1 << 21))
@@ -762,10 +775,14 @@ static u32 io_read(u32 a, int word)
 	return word ? 0xFFFFFFFFu : 0xFF;
 }
 
-static void io_write(u32 a, u32 v)
+static void io_write(u32 a, u32 v, int word)
 {
 	if (priv != PRIV_SUPER)
 		data_abort(a);
+	if (ide_owns(a)) {
+		ide_write(a, v, word);
+		return;
+	}
 	switch ((a >> 16) & 7) {
 	case 0:
 		if (a & (1 << 21))
@@ -841,7 +858,7 @@ static void st32_slow(u32 addr, u32 v)
 	if (top >= 0x300 && priv != PRIV_SUPER)
 		data_abort(a);
 	if (top >= 0x300 && top < 0x340) {
-		io_write(a, v >> 16);
+		io_write(a, v >> 16, 1);
 	} else if (top >= 0x340 && top < 0x360) {
 		vidc_write(v);
 	} else if (top >= 0x360 && top < 0x380) {
@@ -860,7 +877,7 @@ static void st8_slow(u32 addr, u32 v)
 	if (addr >> 26)
 		data_abort(addr);
 	if (top >= 0x300 && top < 0x340) {
-		io_write(a, v & 0xFF);
+		io_write(a, v & 0xFF, 0);
 		return;
 	}
 	st32_slow(addr, v * 0x01010101u);
@@ -1266,6 +1283,7 @@ static void machine_tick(void)
 	if ((memc_ctrl & 0x800) && now >= next_sound_us)
 		sound_swap(now);
 	fdc_tick(now);
+	ide_tick(now);
 	if (kb.rx_at && now >= kb.rx_at) {
 		kb.rx_at = 0;
 		ioc.irqb |= IRQB_KRX;
@@ -1377,6 +1395,14 @@ void mach_init(const u8 *cmos_image)
 		plat_fatal("cannot allocate RAM\n");
 	memset(ram, 0, RAM_SIZE);
 	memcpy(cm.ram, cmos_image, 256);
+	if (plat_hd_sectors() && plat_hd_prepare()) {
+		/* IDEDiscs lives in the top bits of logical CMOS byte 0x87. Keep the
+		 * checksum at 0x3F right, or the kernel resets CMOS at boot. */
+		u8 old = cm.ram[0xC7];
+		cm.ram[0xC7] = (u8)((old & 0x3F) | 0x40);
+		cm.ram[0x3F] = (u8)(cm.ram[0x3F] + cm.ram[0xC7] - old);
+		ide_init(plat_hd_sectors());
+	}
 	cm.clock = cm.line = 1;
 	reset_maps();
 	rom_load_hot();

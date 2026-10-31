@@ -283,6 +283,48 @@ static void cmos_save(void)
 	}
 }
 
+/* A sparse file stands in for the SD card */
+static FILE *hd_file;
+static u32 hd_sectors;
+
+u32 plat_hd_sectors(void)
+{
+	const char *path = getenv("DREAM_HD");
+	if (path && !hd_file) {
+		hd_file = fopen(path, "r+b");
+		if (!hd_file) {
+			hd_file = fopen(path, "w+b");
+			fseek(hd_file, 8LL * 1000 * 1000 * 1000 - 1, SEEK_SET);
+			fputc(0, hd_file);
+		}
+		fseek(hd_file, 0, SEEK_END);
+		long long bytes = ftell(hd_file);
+		hd_sectors = bytes / 512 > 0xF000000 ? 0xF000000 : (u32)(bytes / 512);
+	}
+	return hd_sectors;
+}
+
+int plat_hd_read(u32 lba, u8 *dest)
+{
+	fseek(hd_file, (long long)lba * 512, SEEK_SET);
+	return fread(dest, 1, 512, hd_file) == 512 ? 0 : -1;
+}
+
+int plat_hd_write(u32 lba, const u8 *src)
+{
+	fseek(hd_file, (long long)lba * 512, SEEK_SET);
+	return fwrite(src, 1, 512, hd_file) == 512 ? 0 : -1;
+}
+
+int plat_hd_prepare(void)
+{
+	int state = hd_is_formatted();
+	if (state)
+		return state > 0;
+	fprintf(stderr, "formatting hard disc\n");
+	return !hd_format(plat_hd_sectors());
+}
+
 const ov_header_t *plat_overlay_load(int unit)
 {
 	extern const ov_header_t *const ov_headers[];
@@ -346,6 +388,8 @@ int main(int argc, char **argv)
 		wav_header();
 		fclose(wav);
 	}
+	if (hd_file)
+		fflush(hd_file);
 	fprintf(stderr, "overlay loads %u\n", mach_overlay_loads());
 	fprintf(stderr, "rom misses %u, pages touched %d, pack pages touched %d\n", mach_rom_misses(),
 		__builtin_popcount(pages_touched[0]) + __builtin_popcount(pages_touched[1]),

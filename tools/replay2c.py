@@ -2,6 +2,34 @@
 """Convert a .replay file to a C table for hardware tests: replay2c.py file offset_seconds."""
 import sys
 offset = float(sys.argv[2])
+KEYS = {"\n": (4, 7), " ": (5, 15), ".": (5, 6), "-": (1, 11), "/": (5, 7), ",": (5, 5)}
+KEYS.update(zip("qwertyuiop", [(2, c) for c in (7, 8, 9, 10, 11, 12, 13, 14, 15)] + [(3, 0)]))
+KEYS.update(zip("asdfghjkl", [(3, 12), (3, 13), (3, 14), (3, 15), (4, 0), (4, 1), (4, 2), (4, 3), (4, 4)]))
+KEYS.update(zip("zxcvbnm", [(4, 14), (4, 15), (5, 0), (5, 1), (5, 2), (5, 3), (5, 4)]))
+KEYS.update(zip("1234567890", [(1, c) for c in range(1, 11)]))
+SHIFTED = {":": (4, 5), "$": (1, 4), "*": (1, 8)}
+SHIFT = 4, 12
+
+
+def key(ms, row, col, down):
+    print(f"{{{ms}, 'k', {(row << 8) | col}, {down}}},")
+
+
+def type_text(ms, text):
+    text = text.replace(chr(92) + "n", chr(10))
+    for ch in text:
+        lower = ch.lower()
+        shift = ch.isupper() or ch in SHIFTED
+        row, col = SHIFTED.get(ch) or KEYS[lower]
+        if shift:
+            key(ms, *SHIFT, 1)
+        key(ms + 10, row, col, 1)
+        key(ms + 30, row, col, 0)
+        if shift:
+            key(ms + 40, *SHIFT, 0)
+        ms += 80
+
+
 print("static const replay_t replay_events[] = {")
 shot = 0
 for line in open(sys.argv[1]):
@@ -16,6 +44,10 @@ for line in open(sys.argv[1]):
     elif parts[1] == "shot":
         shot += 1
         print(f"{{{ms}, 's', {shot}, 0}},")
+    elif parts[1] == "key":
+        key(ms, int(parts[2]), int(parts[3]), int(parts[4]))
+    elif parts[1] == "type":
+        type_text(ms, line.split(None, 2)[2].rstrip("\n"))
     else:
         print(f"replay2c: skipping '{line.strip()}', checksums after it will differ", file=sys.stderr)
 print("};")

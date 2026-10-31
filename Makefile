@@ -30,13 +30,21 @@ $(HOSTOBJ)/fdc.o: src/fdc.c src/cpu.h
 	@mkdir -p $(HOSTOBJ)
 	$(HOSTCC) $(HOSTFLAGS) -c $< -o $@
 
+$(HOSTOBJ)/ide.o: src/ide.c src/cpu.h
+	@mkdir -p $(HOSTOBJ)
+	$(HOSTCC) $(HOSTFLAGS) -c $< -o $@
+
+$(HOSTOBJ)/hdformat.o: src/hdformat.c src/cpu.h
+	@mkdir -p $(HOSTOBJ)
+	$(HOSTCC) $(HOSTFLAGS) -c $< -o $@
+
 $(HOSTOBJ)/main.o: src/host/main.c src/cpu.h
 	@mkdir -p $(HOSTOBJ)
 	$(HOSTCC) $(HOSTFLAGS) -c $< -o $@
 
 host: build/dreamrisc-host
 
-build/dreamrisc-host: $(XLAT_HOST) $(HOSTOBJ)/mach.o $(HOSTOBJ)/fdc.o $(HOSTOBJ)/main.o
+build/dreamrisc-host: $(XLAT_HOST) $(HOSTOBJ)/mach.o $(HOSTOBJ)/fdc.o $(HOSTOBJ)/ide.o $(HOSTOBJ)/hdformat.o $(HOSTOBJ)/main.o
 	$(HOSTCC) -o $@ $^
 
 # Dreamcast build; run through scripts/build-dc.sh, which sources the KOS environment.
@@ -57,9 +65,17 @@ $(DCOBJ)/fdc.o: src/fdc.c src/cpu.h
 	@mkdir -p $(DCOBJ)
 	$(KOS_CC) $(DCFLAGS) -c $< -o $@
 
+$(DCOBJ)/ide.o: src/ide.c src/cpu.h
+	@mkdir -p $(DCOBJ)
+	$(KOS_CC) $(DCFLAGS) -c $< -o $@
+
+$(DCOBJ)/hdformat.o: src/hdformat.c src/cpu.h
+	@mkdir -p $(DCOBJ)
+	$(KOS_CC) $(DCFLAGS) -c $< -o $@
+
 $(DCOBJ)/main.o: src/dc/main.c src/cpu.h
 	@mkdir -p $(DCOBJ)
-	$(KOS_CC) $(DCFLAGS) $(if $(HW_LOG),-DHW_LOG '-DPC_ROOT="$(CURDIR)/build/disc"') $(if $(HW_REPLAY),-DHW_REPLAY -Ibuild) $(if $(HW_DUMP),-DHW_DUMP) -c $< -o $@
+	$(KOS_CC) $(DCFLAGS) $(if $(HW_AUTOFORMAT),-DHW_AUTOFORMAT) $(if $(HW_LOG),-DHW_LOG '-DPC_ROOT="$(CURDIR)/build/disc"') $(if $(HW_REPLAY),-DHW_REPLAY -Ibuild) $(if $(HW_DUMP),-DHW_DUMP) -c $< -o $@
 
 $(DCOBJ)/images.o: src/dc/images.S assets/cmos.bin
 	@mkdir -p $(DCOBJ)
@@ -67,7 +83,7 @@ $(DCOBJ)/images.o: src/dc/images.S assets/cmos.bin
 
 dc: build/dreamrisc.elf $(OV_DC)
 
-build/dreamrisc.elf: $(XLAT_DC) $(DCOBJ)/mach.o $(DCOBJ)/fdc.o $(DCOBJ)/main.o $(DCOBJ)/images.o
+build/dreamrisc.elf: $(XLAT_DC) $(DCOBJ)/mach.o $(DCOBJ)/fdc.o $(DCOBJ)/ide.o $(DCOBJ)/hdformat.o $(DCOBJ)/main.o $(DCOBJ)/images.o
 	kos-cc -o $@ $^ -Wl,-Map,build/dreamrisc.map
 
 # Disc image tool, vendored under tools/mkdcdisc (see tools/mkdcdisc/VENDOR.md).
