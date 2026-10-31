@@ -10,5 +10,4 @@ mkdcdisc=${MKDCDISC:-$(command -v mkdcdisc || echo "$HOME/Dropbox/code/dreamcast
 mkdir -p dist
 "$mkdcdisc" --allow-overwrite --disable-data-track-padding --main-elf build/dreamrisc.elf \
   --title 'DreamRISC' --author 'richstokes' --output dist/DreamRISC.cdi
-cp build/dreamrisc.elf dist/dreamrisc.elf
 sh-elf-size build/dreamrisc.elf

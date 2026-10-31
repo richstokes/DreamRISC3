@@ -29,10 +29,4 @@ scripts/run-flycast.sh
 
 Controls: mouse left/right/middle are Select/Menu/Adjust. On a controller, stick or D-pad moves the pointer and A/B/X are Select/Menu/Adjust.
 
-## CI
-
-[`release.yml`](.github/workflows/release.yml) builds the ELF and CDI in a pinned toolchain container and, on `main`, updates a rolling `continuous` release. The ROM comes from a private URL in the `ROM_URL` secret, as one 2MB file checked against `ROM_SHA256`. Without the secret the build is skipped.
-
-**The ELF and CDI embed the whole ROM, so setting `ROM_URL` makes it publicly downloadable from this repo.**
-
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how it works and how to test it.
