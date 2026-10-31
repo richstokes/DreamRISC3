@@ -144,11 +144,16 @@ Things that bit us, for whoever touches this next:
 - Everything blocking runs on one worker thread, which must never touch `C`: r14 only holds machine state on the main thread. `src/net.h` stays free of `cpu.h` for that reason
 - `net_init` waits up to 10s for link, so it can't run at boot on the main thread. The exception is dcload-ip, where KOS has to take the BBA over before anything uses it. `arch_init_net_dcload_ip` then carries dcload's traffic, and `/pc` keeps working
 - KOS's dialler stops at any character with no tone, so dashes are stripped
+- Never print on the receive path, including the ICMP echo callback. Under dcload a `printf` travels through that same path and waits for itself, which froze the whole console at the first ping reply
 - BASIC 1.05 only tokenises text from `*BASIC -load`, and prints "Program renumbered" over the desktop while it does. `tools/basic.py` tokenises at build time. Its output matched BASIC's own `SAVE` byte for byte on both apps
 
 The harness has a scripted link in virtual time (`src/host/net.c`), so replays checksum the apps. Sockets are shared code in `src/net_sock.c`.
 
 Memory: ~100KB of code, and ~120KB of heap once the BBA is up, leaving ~900KB free.
+
+Console (10/31), real BBA under dcload-ip: the KOS takeover works, `/pc` and the log keep running, DHCP gave the address and gateway, and a native test pinged the gateway 12 of 12 times at 2-3.6ms. `!Ping` opened on the real desktop and filled in the gateway.
+
+Open question: under dcload a scripted `!Ping` launch only opened 1 time in 3, with no error, and that one time Return then did nothing. ROM page sums matched Flycast, an SD card makes no difference on the harness, and the F12 line typed correctly, so it's not corrupt data or a bad command. I suspect dcload sharing the BBA, since nothing else here differs and it never happened in Flycast or on the harness, but that's unproven. Next step is booting the CDI from GDEMU with no dcload at all. `!Ping` driven by hand on a console, Modem on a real DreamPi, and the W5500 are all untested.
 
 Flycast (10/31): `!Ping` launched by replay and ran through the real KOS driver against the emulated BBA (DHCP, ICMP replies at 2-22ms) and emulated modem (PPP at 33600, replies at 60-80ms).
 
@@ -191,4 +196,4 @@ Console and harness checkpoints stop matching in Lander once it moves, because r
 1. Look at the real screen, try physical keyboard and mouse, and catch the boot hang if it recurs
 2. Use more of the card: FileCore in 3.11 tops out near 512MB per disc, so maybe several drives
 3. Listen to the sound on a console, and check mode 27 on a TV as well as VGA
-4. Network: dial a real DreamPi, try a real W5500, and exercise the socket SWIs from a BASIC program
+4. Network: run `!Ping` on a console without dcload, dial a real DreamPi, try a real W5500, and exercise the socket SWIs from a BASIC program

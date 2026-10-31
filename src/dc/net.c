@@ -63,6 +63,10 @@ static uint8_t resolve_ip[4];
 
 static volatile struct { uint32_t seq, rtt_us, ttl; int valid; } replies[NET_SEQS];
 
+/* Replies arrive on the receive path, which must not print: under dcload a printf
+ * travels through that same path and waits for itself. The worker logs them. */
+static volatile typeof(replies[0]) *volatile last_reply;
+
 static void say(uint32_t state, const char *text)
 {
 	strncpy((char *)live.text, text, sizeof(live.text) - 1);
@@ -83,7 +87,7 @@ static void echo_reply(const uint8_t *ip, uint16_t seq, uint64_t delta_us, uint8
 	r->rtt_us = (uint32_t)delta_us;
 	r->ttl = ttl;
 	r->valid = 1;
-	printf("net: reply seq %u in %lu us\n", (unsigned)seq, (unsigned long)r->rtt_us);
+	last_reply = r;
 }
 
 static netif_t *find_netif(const char *name)
@@ -266,6 +270,11 @@ static void *worker(void *arg)
 			} else {
 				resolve_state = -1;
 			}
+		}
+		if (last_reply) {
+			printf("net: reply seq %lu in %lu us\n", (unsigned long)last_reply->seq,
+				(unsigned long)last_reply->rtt_us);
+			last_reply = NULL;
 		}
 		thd_sleep(IDLE_MS);
 	}
