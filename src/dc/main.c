@@ -428,9 +428,19 @@ void plat_frame(const screen_t *s)
 		return;
 	scale = 640 / width;
 	n = (u32)(width * s->bpp / 8);
-	if (width != last_w || height != last_h || s->bpp != last_bpp ||
-	    memcmp(last_pal[0], s->palette, sizeof(last_pal[0])) ||
-	    memcmp(last_pal[1], below, sizeof(last_pal[1]))) {
+	if (width == last_w && height == last_h && s->bpp == last_bpp) {
+		/* Games cycle colours all the time, so a new palette only redraws its own lines */
+		int part;
+		for (part = 0; part < 2; part++) {
+			const u32 *pal = part ? below : s->palette;
+			if (!memcmp(last_pal[part], pal, sizeof(last_pal[part])))
+				continue;
+			memcpy(last_pal[part], pal, sizeof(last_pal[part]));
+			build_lut(s, pal, part);
+			for (y = part ? split : 0; y < (part ? height : split) && y < MAX_LINES; y++)
+				line_sum[0][y] = line_sum[1][y] = 0xA5A5A5A5u;
+		}
+	} else {
 		memcpy(last_pal[0], s->palette, sizeof(last_pal[0]));
 		memcpy(last_pal[1], below, sizeof(last_pal[1]));
 		last_w = width;

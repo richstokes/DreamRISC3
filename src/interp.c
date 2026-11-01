@@ -8,7 +8,7 @@
  *
  * ARM_INTERP_ALL keeps ROM code in here too. That build exists to check this file
  * against the replay checksums, which were all recorded from recompiled code. */
-#include "cpu.h"
+#include "appunit.h"
 
 #define ROM_BASE 0x3800000u
 #define EXIT_SWI (1u << 26)
@@ -121,13 +121,15 @@ static u32 run(u32 pc)
 	u32 i;
 	for (;;) {
 		if (!page || !(pc & PAGE_OFFSET) || pc >= ROM_BASE) {
-			page = mach_code_page(pc);
+			page = C->rt[PAGE_INDEX(pc)];
+			if (!page || pc >= ROM_BASE)
+				page = mach_code_page(pc);
 			if (!page)
 				return pc; /* dispatch reports it */
 		}
 		i = *(const u32 *)(page + (pc & 0x7FFCu));
 		COUNT();
-		if (!passes(i >> 28)) {
+		if (i >> 28 != 14 && !passes(i >> 28)) {
 			pc += 4;
 			continue;
 		}
@@ -266,11 +268,11 @@ static u32 run(u32 pc)
 				else
 					st32T(addr, reg_psr(rd, pc + 12), pc);
 			} else if (load) {
-				v = byte ? ld8(addr) : ld32(addr);
+				v = byte ? ld8i(addr) : ld32i(addr);
 			} else if (byte) {
-				st8(addr, reg_psr(rd, pc + 12));
+				st8i(addr, reg_psr(rd, pc + 12));
 			} else {
-				st32(addr, reg_psr(rd, pc + 12));
+				st32i(addr, reg_psr(rd, pc + 12));
 			}
 			if ((!pre || wb) && rn != 15)
 				REG(rn) = ea;
@@ -306,13 +308,13 @@ static u32 run(u32 pc)
 					if (!(mask >> r & 1))
 						continue;
 					if (user_bank && r >= 8)
-						usr_set(r, ld32(a));
+						usr_set(r, ld32i(a));
 					else
-						REG(r) = ld32(a);
+						REG(r) = ld32i(a);
 					a += 4;
 				}
 				if (mask & 0x8000) {
-					u32 npc = ld32(a);
+					u32 npc = ld32i(a);
 					if (wb && rn != 15 && !(mask >> rn & 1))
 						REG(rn) = wbv;
 					if (sbit)
@@ -336,7 +338,7 @@ static u32 run(u32 pc)
 						v = wbv;
 					else
 						v = REG(r);
-					st32(a, v);
+					st32i(a, v);
 					a += 4;
 					first = 0;
 				}
