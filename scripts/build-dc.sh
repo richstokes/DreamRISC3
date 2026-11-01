@@ -16,7 +16,7 @@ bytes=$(grep -o 'OVERLAY_BYTES 0x[0-9a-f]*u' src/cpu.h | sed 's/.* //; s/u$//')
 rm -rf build/disc; mkdir -p build/disc
 shopt -s nullglob # app units are a single file
 cp build/rom.bin build/disc/rom.bin
-gunzip -c assets/adfs.adf.gz > build/disc/adfs.adf
+if [ -n "${DC_ADF:-}" ]; then cp "$DC_ADF" build/disc/adfs.adf; else gunzip -c assets/adfs.adf.gz > build/disc/adfs.adf; fi
 for table in build/dc/ov_*_table.o; do
   unit=$(basename "$table" | cut -d_ -f2)
   sh-elf-ld -T tools/overlay.ld --defsym=REGION="$region" --just-symbols=build/dreamrisc.elf \

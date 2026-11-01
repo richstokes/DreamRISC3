@@ -27,6 +27,9 @@ const u8 *mach_code_page(u32 pc);
 unsigned long long arm_insns;
 u32 arm_hist[0x80000 / 4]; /* RAM below 512KB, by address */
 #define COUNT() (arm_insns++, pc < 0x80000 ? (void)arm_hist[pc >> 2]++ : (void)0)
+#elif defined(HW_LOG)
+u32 arm_insns; /* read by the heartbeat */
+#define COUNT() arm_insns++
 #else
 #define COUNT()
 #endif

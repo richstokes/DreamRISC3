@@ -390,6 +390,14 @@ void plat_frame(const screen_t *s)
 			printf("\n");
 			memset(mach_prof, 0, sizeof(mach_prof));
 		}
+#ifdef ARM_INTERP
+		{
+			extern u32 arm_insns;
+			static u32 last_insns;
+			printf("arm insns=%lu in 5s\n", (unsigned long)(arm_insns - last_insns));
+			last_insns = arm_insns;
+		}
+#endif
 		log_flips = 0;
 		present_us = 0;
 		{

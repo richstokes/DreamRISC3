@@ -89,6 +89,10 @@ $(DCOBJ)/%.o: $(GEN)/%.c src/cpu.h
 
 $(DCOBJ)/mach.o: src/mach.c src/cpu.h
 	@mkdir -p $(DCOBJ)
+	$(KOS_CC) $(DCFLAGS) -O2 $(if $(HW_LOG),-DHW_LOG) $(if $(INTERP),-DARM_INTERP) -c $< -o $@
+
+$(DCOBJ)/interp.o: src/interp.c src/cpu.h
+	@mkdir -p $(DCOBJ)
 	$(KOS_CC) $(DCFLAGS) -O2 $(if $(HW_LOG),-DHW_LOG) -c $< -o $@
 
 $(DCOBJ)/fdc.o: src/fdc.c src/cpu.h
@@ -105,7 +109,7 @@ $(DCOBJ)/hdformat.o: src/hdformat.c src/cpu.h
 
 $(DCOBJ)/main.o: src/dc/main.c src/cpu.h
 	@mkdir -p $(DCOBJ)
-	$(KOS_CC) $(DCFLAGS) $(if $(HW_AUTOFORMAT),-DHW_AUTOFORMAT) $(if $(HW_LOG),-DHW_LOG '-DPC_ROOT="$(CURDIR)/build/disc"') $(if $(HW_REPLAY),-DHW_REPLAY -Ibuild) $(if $(HW_DUMP),-DHW_DUMP) -c $< -o $@
+	$(KOS_CC) $(DCFLAGS) $(if $(INTERP),-DARM_INTERP) $(if $(HW_AUTOFORMAT),-DHW_AUTOFORMAT) $(if $(HW_LOG),-DHW_LOG '-DPC_ROOT="$(CURDIR)/build/disc"') $(if $(HW_REPLAY),-DHW_REPLAY -Ibuild) $(if $(HW_DUMP),-DHW_DUMP) -c $< -o $@
 
 $(DCOBJ)/net.o: src/net.c src/net.h src/web.h src/cpu.h
 	@mkdir -p $(DCOBJ)
@@ -133,7 +137,7 @@ $(DCOBJ)/images.o: src/dc/images.S assets/cmos.bin
 
 dc: build/dreamrisc.elf $(OV_DC)
 
-build/dreamrisc.elf: $(XLAT_DC) $(DCOBJ)/mach.o $(DCOBJ)/fdc.o $(DCOBJ)/ide.o $(DCOBJ)/hdformat.o $(DCOBJ)/main.o $(DCOBJ)/images.o $(DCOBJ)/net.o $(DCOBJ)/net_sock.o $(DCOBJ)/net_dc.o $(DCOBJ)/web.o $(DCOBJ)/tls.o
+build/dreamrisc.elf: $(XLAT_DC) $(DCOBJ)/mach.o $(DCOBJ)/fdc.o $(DCOBJ)/ide.o $(DCOBJ)/hdformat.o $(DCOBJ)/main.o $(DCOBJ)/images.o $(DCOBJ)/net.o $(DCOBJ)/net_sock.o $(DCOBJ)/net_dc.o $(DCOBJ)/web.o $(DCOBJ)/tls.o $(if $(INTERP),$(DCOBJ)/interp.o)
 	kos-cc -o $@ $^ -lppp -lmbedtls -lmbedx509 -lmbedcrypto -Wl,--wrap=realloc -Wl,-Map,build/dreamrisc.map
 
 # Disc image tool, vendored under tools/mkdcdisc (see tools/mkdcdisc/VENDOR.md).

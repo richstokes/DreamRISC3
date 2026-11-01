@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Convert a .replay file to a C table for hardware tests: replay2c.py file offset_seconds."""
+import os
 import sys
 offset = float(sys.argv[2])
 KEYS = {"\n": (4, 7), " ": (5, 15), ".": (5, 6), "-": (1, 11), "/": (5, 7), ",": (5, 5)}
@@ -27,7 +28,7 @@ def type_text(ms, text):
         key(ms + 30, row, col, 0)
         if shift:
             key(ms + 40, *SHIFT, 0)
-        ms += 80
+        ms += int(os.environ.get("TYPE_MS", "80"))
 
 
 print("static const replay_t replay_events[] = {")
