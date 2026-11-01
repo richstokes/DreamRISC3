@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- DreamRISC boot logo for the Dreamcast licence screen (mkdcdisc -i).
+     Background is #c0c0c0, the licence screen grey, so the image has no visible box.
      Rendered to assets/acorn-logo.png at 320x90, max 128 colours, flat fills so the
      RLE-compressed MR data stays under mkdcdisc's 8KB limit. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="320" height="90" viewBox="0 0 320 90">
@@ -13,7 +14,7 @@
       <path d="M22 44 Q22 16 54 16 Q86 16 86 44 Q78 40 70 46 Q62 40 54 46 Q46 40 38 46 Q30 40 22 44 Z"/>
     </clipPath>
   </defs>
-  <rect width="320" height="90" fill="#ffffff"/>
+  <rect width="320" height="90" fill="#c0c0c0"/>
 
   <!-- nut -->
   <path d="M27 40 Q27 84 54 84 Q81 84 81 40 Z" fill="#b8632a"/>
