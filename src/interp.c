@@ -120,7 +120,8 @@ static inline u32 shifter_reg(u32 i, u32 pc, u32 *carry)
 static u32 run(u32 pc)
 {
 	const u8 *page = 0;
-	u32 i;
+	u32 i, fetched = 0;
+	int stale = 0;
 	for (;;) {
 		if (!page || !(pc & PAGE_OFFSET) || pc >= ROM_BASE) {
 			page = C->rt[PAGE_INDEX(pc)];
@@ -131,6 +132,7 @@ static u32 run(u32 pc)
 		}
 		i = *(const u32 *)(page + (pc & 0x7FFCu));
 		COUNT();
+decode:
 		if (i >> 28 != 14 && !passes(i >> 28)) {
 			pc += 4;
 			continue;
@@ -274,10 +276,23 @@ static u32 run(u32 pc)
 			} else if (byte) {
 				st8i(addr, reg_psr(rd, pc + 12));
 			} else {
+				/* The pipeline already holds the next instruction, and a store over
+				 * it takes effect only on the next pass. Elite's decrypter relies
+				 * on that, to catch anyone stepping through it. */
+				if ((addr & ~3u) == pc + 4 && (pc + 4) & PAGE_OFFSET) {
+					fetched = *(const u32 *)(page + ((pc + 4) & 0x7FFCu));
+					stale = 1;
+				}
 				st32i(addr, reg_psr(rd, pc + 12));
 			}
 			if ((!pre || wb) && rn != 15)
 				REG(rn) = ea;
+			if (stale) {
+				stale = 0;
+				pc += 4;
+				i = fetched;
+				goto decode;
+			}
 			if (load) {
 				if (rd == 15) {
 					pc = v & PC_MASK;

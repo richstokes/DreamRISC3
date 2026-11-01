@@ -60,11 +60,16 @@ class Entry:
         return child
 
     def walk(self, path=""):
-        for child in sorted(self.children.values(), key=lambda e: e.name.lower()):
+        for child in sorted(self.children.values(), key=sort_key):
             here = path + "." + child.name if path else child.name
             yield here, child
             if child.is_dir:
                 yield from child.walk(here)
+
+
+def sort_key(entry):
+    """FileCore's directory order, which folds case for ASCII only."""
+    return [ord(c) + 32 if "A" <= c <= "Z" else ord(c) for c in entry.name]
 
 
 def valid_name(name):
@@ -86,15 +91,17 @@ def _entries(block):
         if r[0] == 0:
             break
         raw = r[:NAME_LEN]
+        # Old directories keep attributes in the names' top bits; new ones allow 8 bits
+        mask = 0xFF if fmt == b"Nick" else 0x7F
         name = ""
         for c in raw:
             if c & 0x7F < 32:
                 break
-            name += chr(c & 0x7F)
+            name += chr(c & mask)
         load, exec_, length = struct.unpack("<III", r[10:22])
         address = r[22] | r[23] << 8 | r[24] << 16
         attrs = r[25]
-        if not attrs:  # old directories keep the attributes in the name's top bits
+        if not attrs and fmt != b"Nick":
             for bit, out in ((0, 1), (1, 2), (2, 4), (3, 8), (5, 0x10), (6, 0x20)):
                 if raw[bit] & 0x80:
                     attrs |= out
@@ -483,7 +490,7 @@ def build_disc(root, name, log2_bpmb, min_zones=3):
         b = bytearray(DIR_BYTES)
         b[0] = 1
         b[1:5] = b"Nick"
-        children = sorted(entry.children.values(), key=lambda e: e.name.lower())
+        children = sorted(entry.children.values(), key=sort_key)
         for i, child in enumerate(children):
             at = 5 + i * ENTRY
             b[at:at + NAME_LEN] = (child.name.encode("latin-1") + b"\r").ljust(NAME_LEN, b"\0")[:NAME_LEN]

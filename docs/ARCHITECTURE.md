@@ -138,6 +138,8 @@ Duplicates go in two passes, sound dumps first so a damaged copy only survives w
 
 A `!Sprites` of type FF9 that isn't sprite data gets a `Bad sprite file` box from the Filer every time the folder around it opens, so `prune_broken` deals with those before any of this. A blank one (Simon's `!Update`, a lost sector) becomes a valid file with no sprites, as its `!Boot` loads it by name. Anything else means the directory points at other files' bytes, and the app goes: the end of the Application Suite's disk 2 is mangled in every dump, which costs us `!Puzzle`, `!TinyDirs` and `!Usage`. Packed titles keep theirs under other types and are left alone.
 
+The interpreter models one piece of the ARM pipeline for this software: a word store over the next instruction leaves the old instruction to run, which Elite's decrypter depends on.
+
 Most of the No-Intro set and some of TOSEC are JFD, a track dump that keeps copy protection. `read_jfd` takes the standard sectors by id and records which are missing, and a file on a missing sector counts as damage. Gods came through that way and runs, but anything that checks its protection at runtime will fail, as `fdc.c` has no protected tracks to show it.
 
 `tools/adfs.py` writes the same new-map layout as `hdformat.c`, with the files in place. Things FileCore insists on, each found the hard way with `*CheckMap`:

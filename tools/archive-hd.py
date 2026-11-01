@@ -47,6 +47,8 @@ CACHE = "/tmp/archimedes-archive"
 SOURCES = ("TOSEC-Acorn", "No-Intro_AA", "20240825_20240825_0053", "netmanyagi_acorn-archimedes", "Acron-Archimedes")
 FOLDERS = {"Applications": "Apps", "Educational": "Apps", "Miscellaneous": "Apps", "Games": "Games",
            "Demos": "Demos", "Compilations": "Compilatns"}
+# Filed under Games by the collections that carry them
+APPS = re.compile(r"^(impression|pen down|startwrite|the hacker|hacker, the|desktophacker|coconizer|alps)", re.I)
 SKIP = re.compile(r"blank \d+k|catalogue|boot floppy|fileserver|^zzz", re.I)  # not software to run
 SAME_BYTES = 0.9  # share of a disk already on the image that makes it a duplicate
 LIKELY_SAME = 0.5  # the same, when its title is also close to the title they came from
@@ -301,6 +303,8 @@ def candidates(args):
             leaf = os.path.basename(path)
             if not folder or SKIP.search(leaf):
                 continue
+            if APPS.search(leaf):
+                folder = "Apps"
             where = "zips" if source == "TOSEC" else os.path.join("sources", source)
             local = path.replace("/", "__") if source != "TOSEC" else leaf
             zip_path = os.path.join(args.cache, where, local)
