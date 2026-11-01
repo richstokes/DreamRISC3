@@ -113,20 +113,36 @@ def build_pack(apps):
     return bytes(pack)
 
 
+SCRAP_CMDS = [b"Set Wimp$ScrapDir ADFS:$\0", b"Set Wimp$Scrap ADFS:$.ScrapFile\0"]
+
+
 def arm_module():
-    """Registers the pack; also answers ResourceFS restarting."""
+    """Registers the pack and sets the scrap variables !Scrap would set; also answers ResourceFS restarting."""
+    title = b"DreamApps\0\0\0"
+    help_text = b"DreamApps\t0.02 (1 Nov 2026)\0"
+    help_text += bytes(-len(help_text) & 3)
+    code_words = 7 + 9 + 8
+    title_at = code_words * 4 + 4
+    help_at = title_at + len(title)
+    cmd1 = help_at + len(help_text)
+    cmd2 = cmd1 + len(SCRAP_CMDS[0])
+    adr = lambda at, target: 0xE28F0000 | (target - (at + 8))  # ADD r0,pc,#offset
     code = [
         0,                # start
         0x1C,             # init
         0,                # final
-        0x30,             # service
-        0x50,             # title
-        0x5C,             # help
+        0x40,             # service
+        title_at,         # title
+        help_at,          # help
         0,                # commands
         # init
         0xE92D4000,       # STMFD sp!,{lr}
         0xE3A0050F,       # MOV r0,#PACK_BASE
         0xEF061B40,       # SWI XResourceFS_RegisterFiles
+        adr(0x28, cmd1),  # ADR r0,cmd1
+        0xEF020005,       # SWI XOS_CLI
+        adr(0x30, cmd2),  # ADR r0,cmd2
+        0xEF020005,       # SWI XOS_CLI
         0xE1500000,       # CMP r0,r0 (a failure must not fail the boot)
         0xE8BD8000,       # LDMFD sp!,{pc}
         # service
@@ -137,12 +153,11 @@ def arm_module():
         0xE1A0E00F,       # MOV lr,pc
         0xE1A0F002,       # MOV pc,r2
         0xE8BD8001,       # LDMFD sp!,{r0,pc}
+        0,                # end of service
     ]
-    assert len(code) * 4 == 0x4C
+    assert len(code) == code_words and cmd2 - 0x38 < 256
     body = struct.pack(f"<{len(code)}I", *code) + bytes(4)
-    body += b"DreamApps\0\0\0"
-    assert len(body) == 0x5C
-    body += b"DreamApps\t0.01 (31 Oct 2026)\0"
+    body += title + help_text + SCRAP_CMDS[0] + SCRAP_CMDS[1]
     return body + bytes(-len(body) & 3)
 
 

@@ -81,7 +81,9 @@ Console check (10/31): opened `:0` in the Filer with the checksum matching the h
 
 It also sets WimpFlags to 15 (physical byte `0x15`). The usual 111 lets a window be dragged fully off the bottom, where neither the pointer nor a click on its icon can get it back.
 
-Colours follow Arculator's default Acorn black level, `(n-3)*255/12` per 4-bit VIDC level, so levels 0-3 are all black. A straight 4-bit expansion looks washed out next to a real machine. The harness can save CMOS with `DREAM_CMOS_OUT`.
+Colours follow Arculator's default Acorn black level, `(n-3)*255/12` per 4-bit VIDC level, so levels 0-3 are all black. A straight 4-bit expansion looks washed out next to a real machine.
+
+There's no boot disc, so nothing runs !Scrap. `DreamApps` sets `Wimp$ScrapDir` and `Wimp$Scrap` at init instead, pointing at `ADFS:$`, as the C library, Draw, Edit and Paint all expect them. With a card the default drive becomes `:4`, as the floppy isn't there. Scrap files land in the root of the disc, which is a bit untidy but needs no directory to exist. The harness can save CMOS with `DREAM_CMOS_OUT`.
 
 A framebuffer dump in Flycast (`HW_DUMP=1`) shows the desktop sharp at full size with the right colours.
 

@@ -1,0 +1,9 @@
+# The scrap variables !Scrap would set are there, and the scrap file can be written.
+70 key 0 12 1
+70.1 key 0 12 0
+73 type show wimp*\n
+78 type spool <Wimp$Scrap>\n
+82 type echo hi\n
+86 type spool\n
+90 type cat adfs:$\n
+98 shot build/sc1.ppm

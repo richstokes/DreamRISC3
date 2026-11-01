@@ -1422,6 +1422,11 @@ void mach_init(const u8 *cmos_image)
 		u8 old = cm.ram[0xC7];
 		cm.ram[0xC7] = (u8)((old & 0x3F) | 0x40);
 		cm.ram[0x3F] = (u8)(cm.ram[0x3F] + cm.ram[0xC7] - old);
+		/* The card replaces the floppy, so it must be the default drive (logical
+		 * byte 0x0B, low bits), or ADFS:$ and the scrap directory find no disc. */
+		old = cm.ram[0x4B];
+		cm.ram[0x4B] = (u8)((old & 0xF8) | 4);
+		cm.ram[0x3F] = (u8)(cm.ram[0x3F] + cm.ram[0x4B] - old);
 		ide_init(plat_hd_sectors());
 	}
 	cm.clock = cm.line = 1;
