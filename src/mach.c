@@ -1518,7 +1518,9 @@ void mach_init(const u8 *cmos_image)
 	rom_load_hot();
 	fdc_init();
 	sound_init();
+#ifndef HW_NO_NET /* KOS taking the adapter from dcload can hang at boot */
 	plat_net_init();
+#endif
 	for (i = 0; i < 3; i++)
 		rtab[i][0] = rom_cache; /* ROM aliased at 0 until the kernel maps page zero */
 	memset(&cpu_state, 0, sizeof(cpu_state));

@@ -89,7 +89,7 @@ $(DCOBJ)/%.o: $(GEN)/%.c src/cpu.h
 
 $(DCOBJ)/mach.o: src/mach.c src/cpu.h
 	@mkdir -p $(DCOBJ)
-	$(KOS_CC) $(DCFLAGS) -O2 $(if $(HW_LOG),-DHW_LOG) $(if $(INTERP),-DARM_INTERP) -c $< -o $@
+	$(KOS_CC) $(DCFLAGS) -O2 $(if $(HW_LOG),-DHW_LOG) $(if $(INTERP),-DARM_INTERP) $(if $(HW_NO_NET),-DHW_NO_NET) -c $< -o $@
 
 $(DCOBJ)/interp.o: src/interp.c src/cpu.h
 	@mkdir -p $(DCOBJ)
@@ -109,7 +109,7 @@ $(DCOBJ)/hdformat.o: src/hdformat.c src/cpu.h
 
 $(DCOBJ)/main.o: src/dc/main.c src/cpu.h
 	@mkdir -p $(DCOBJ)
-	$(KOS_CC) $(DCFLAGS) $(if $(INTERP),-DARM_INTERP) $(if $(HW_AUTOFORMAT),-DHW_AUTOFORMAT) $(if $(HW_LOG),-DHW_LOG '-DPC_ROOT="$(CURDIR)/build/disc"') $(if $(HW_REPLAY),-DHW_REPLAY -Ibuild) $(if $(HW_DUMP),-DHW_DUMP) -c $< -o $@
+	$(KOS_CC) $(DCFLAGS) $(if $(INTERP),-DARM_INTERP) $(if $(HW_NO_SD),-DHW_NO_SD) $(if $(HW_AUTOFORMAT),-DHW_AUTOFORMAT) $(if $(HW_LOG),-DHW_LOG '-DPC_ROOT="$(CURDIR)/build/disc"') $(if $(HW_REPLAY),-DHW_REPLAY -Ibuild) $(if $(HW_DUMP),-DHW_DUMP) -c $< -o $@
 
 $(DCOBJ)/net.o: src/net.c src/net.h src/web.h src/cpu.h
 	@mkdir -p $(DCOBJ)

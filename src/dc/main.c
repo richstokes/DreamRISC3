@@ -767,7 +767,9 @@ int main(int argc, char **argv)
 	back_fb = 1;
 	clear_buffers();
 	sound_start();
+#ifndef HW_NO_SD /* a card replaces the floppy, and these tests need the floppy */
 	sd_open();
+#endif
 	mach_init(cmos_image);
 	mach_run(0);
 	return 0;
