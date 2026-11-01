@@ -11,7 +11,10 @@ found by what is on the disc as well as by name: a disk goes if its title and di
 number are taken, if nearly all of its bytes are already on the image, or if about
 half are and its title is close to the one they came from. Sound dumps are placed
 before damaged ones, so a broken copy only survives when nothing better exists. A
-ReadMe in the root maps each folder back to its archive name.
+!Sprites that is not sprite data stops the Filer with an error box whenever the
+folder around it opens, so a blank one is emptied and an app whose file holds other
+files' bytes comes off the disc. A ReadMe in the root maps each folder back to
+its archive name.
 
 usage: archive-hd.py OUT [--cache DIR] [--limit N] [--refresh]
 
@@ -26,6 +29,7 @@ import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -35,7 +39,6 @@ import urllib.request
 import zipfile
 
 import adfs
-from struct import error as struct_error
 
 INDEX = ("https://ia903209.us.archive.org/view_archive.php?archive=/24/items/"
          "Acorn_Archimedes_TOSEC_2012_04_23/Acorn_Archimedes_TOSEC_2012_04_23.zip")
@@ -50,6 +53,7 @@ LIKELY_SAME = 0.5  # the same, when its title is also close to the title they ca
 SAME_TITLE = 0.8
 DISC_NAME = "Archive"
 BAD_DUMP = ("b", "o", "u", "v")  # TOSEC flags for dumps known to be broken
+SPRITE_TYPE = 0xFFFF9  # load address top bits of a sprite file
 
 
 def fetch(url, path, refresh=False):
@@ -209,6 +213,49 @@ def sanitise(node):
         node.add(child)
 
 
+def sprite_ok(data):
+    """Whether the sprites a sprite file's header promises are all in the file."""
+    if len(data) < 12:
+        return False
+    count, at = struct.unpack_from("<II", data)
+    at -= 4  # offsets count from the area's size word, which files leave out
+    if at < 12:
+        return False
+    for _ in range(count):
+        if at + 4 > len(data):
+            return False
+        size = struct.unpack_from("<I", data, at)[0]
+        if not size or at + size > len(data):
+            return False
+        at += size
+    return True
+
+
+def prune_broken(node, path, problems):
+    """Take off every !Sprites that would raise an error when the Filer sees it.
+
+    Only sprite-typed files count: packed titles keep theirs under their own types.
+    Zeros are a lost sector, so the app is probably fine and only loses its icon. It
+    gets a valid file with no sprites in it, as a !Boot may *IconSprites the name.
+    Anything else means the directory points at other files' bytes, and the rest of
+    the app is no better (the Application Suite's second disk does this to !Puzzle,
+    !TinyDirs and !Usage in every dump)."""
+    for child in list(node.children.values()):
+        if not child.is_dir:
+            continue
+        where = path + "." + child.name
+        sprites = next((e for e in child.children.values()
+                        if e.name.lower() == "!sprites" and not e.is_dir), None)
+        if sprites and (sprites.load >> 8) & 0xFFFFF == SPRITE_TYPE and not sprite_ok(sprites.data):
+            if any(sprites.data[:12]):
+                del node.children[child.name.lower()]
+                problems.append("%s: dropped, its !Sprites is not sprite data" % where)
+                continue
+            sprites.data = struct.pack("<III", 0, 16, 16)
+            problems.append("%s: !Sprites emptied, it is blank" % where)
+        prune_broken(child, where, problems)
+
+
 def merge(dest, src, into_disk=None):
     """Copy src's children into dest. A clash that is not the same bytes goes under DiskN."""
     for child in src.children.values():
@@ -274,9 +321,10 @@ def candidates(args):
                         tree = adfs.read_floppy(image, problems, holes)
                     else:
                         tree = adfs.read_floppy(raw, problems)
-                except (ValueError, IndexError, KeyError, OSError, struct_error) as e:
+                except (ValueError, IndexError, KeyError, OSError, struct.error) as e:
                     print("  unreadable %s: %s" % (stem, e), file=sys.stderr)
                     continue
+                prune_broken(tree, "$", problems)
                 if not tree.children:
                     continue
                 title, disk, rank = parse_name(stem)
