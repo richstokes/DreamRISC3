@@ -130,18 +130,23 @@ Not tested: the format prompt on a real controller or keyboard (hardware tests u
 
 ## Software archive
 
-A second IDE drive carries the Acorn Archimedes TOSEC set as a read-only ADFS hard disc, `archive.hd` on the CD. `src/ide.c` now models master and slave: the SD card is the master when there is one and the archive the slave, otherwise the archive is the master on its own, and `IDEDiscs` in CMOS is set to however many are there. Writes to the archive fail with an abort error. On the Dreamcast, reads go through a 32KB chunk cache in `src/dc/main.c`, since ADFS asks for a sector at a time and the GD-ROM is slow to seek. The harness takes the image as `DREAM_HD_RO`.
+A second IDE drive carries Archimedes software as a read-only ADFS hard disc, `archive.hd` on the CD. `src/ide.c` now models master and slave: the SD card is the master when there is one and the archive the slave, otherwise the archive is the master on its own, and `IDEDiscs` in CMOS is set to however many are there. Writes to the archive fail with an abort error. On the Dreamcast, reads go through a 32KB chunk cache in `src/dc/main.c`, since ADFS asks for a sector at a time and the GD-ROM is slow to seek. The harness takes the image as `DREAM_HD_RO`.
 
-`tools/archive-hd.py` builds the image: it downloads each zip the archive index lists into `/tmp/archimedes-archive` (once), reads the floppy inside with `tools/adfs.py`, and lays the files out under `Apps`, `Games`, `Demos` and `Compilatns`, one folder per title, split alphabetically past 77 entries. Variant dumps are dropped when a plain one exists, multi-disk titles merge into one folder, and a `ReadMe` in the root maps folders back to archive names. 171 of the 191 images read; the rest are truncated or not ADFS.
+`tools/archive-hd.py` builds the image from the TOSEC 2012 set plus `SOURCES`, five collections on archive.org in all, which between them hold ~1300 disc images and ~260 distinct titles. It downloads each file once into `/tmp/archimedes-archive`, reads the floppies with `tools/adfs.py` and lays them out under `Apps`, `Games`, `Demos` and `Compilatns`, one folder per title, split alphabetically past 77 entries. Multi-disk titles merge into one folder and a `ReadMe` in the root maps folders back to archive names.
+
+Duplicates go in two passes, sound dumps first so a damaged copy only survives when nothing better exists. Same normalised title and disk number drops ~930 images. The rest are compared by SHA-1 of their files: 90% of a disk's bytes already on the image drops it, as does 50% when the title is also close (`Air Supremecy`, `Air Supremacy`) and carries the same numbers, since sequels reuse their predecessor's files. That catches ~85 more. Run the tool and read its stderr to see each decision.
+
+Most of the No-Intro set and some of TOSEC are JFD, a track dump that keeps copy protection. `read_jfd` takes the standard sectors by id and records which are missing, and a file on a missing sector counts as damage. Gods came through that way and runs, but anything that checks its protection at runtime will fail, as `fdc.c` has no protected tracks to show it.
 
 `tools/adfs.py` writes the same new-map layout as `hdformat.c`, with the files in place. Things FileCore insists on, each found the hard way with `*CheckMap`:
 
 - With map units smaller than a sector, every fragment has to start and end on a sector boundary, or directories read back broken
 - Every zone needs a free fragment; a full zone makes the disc "not understood"
-- Small objects may only share a fragment with their siblings or their parent directory. `*CheckMap` frees a whole fragment once no sibling shares it, then spins forever looking for it when the next directory's file turns up. The builder gives every object its own fragment, which costs ~12MB on a 93MB disc
+- Small objects may only share a fragment with their siblings. `*CheckMap` frees a whole fragment once no sibling shares it, then spins forever looking for it when the next directory's file turns up. So the builder bins small files by parent directory
+- Reading floppies: free fragments' id fields are links, not ids, and object 2 starts at the map zone, as on an F disc the boot block is part of it too
 - An empty file has disc address 1 (id 0) and no fragment
 
-`*CheckMap 4` reports `Map good` on discs of up to 40 titles. On the full 136-title disc it was still walking the tree after 15 minutes, since it rescans the whole 54KB map for each of 7800 objects, so that run was not finished.
+`*CheckMap 4` reports `Map good` on a 40-title disc. It has not finished on a full disc, since it rescans the whole map for each object, and an earlier 136-title disc was still walking the tree after 15 minutes.
 
 ## Network
 

@@ -4,9 +4,9 @@
 Reading covers old-map (L, D) and new-map (E) floppies with either directory format.
 Writing lays down the same disc hdformat.c does, with the files already in place:
 512 byte sectors, 15 bit ids, zone spare 32, both map copies and the root at the
-start of the middle zone. Small objects share a fragment, as FileCore itself does,
-so the id space goes a long way. Run as a script it lists an image.
+start of the middle zone. Run as a script it lists an image.
 """
+import gzip
 import struct
 import sys
 
@@ -26,6 +26,7 @@ MAX_ZONES = 120  # keeps the root's sector offset within one byte
 BOOT_ADDR = 0xC00
 HEADS, SPT = 16, 63
 NAME_LEN = 10
+FLOPPY_SPT = 5
 BAD_CHARS = set('$&%@\\^:.#*"| ')
 
 
@@ -115,11 +116,14 @@ def _new_map_fragments(image, rec):
     for z in range(zones):
         zone = image[map_addr + z * sector:map_addr + (z + 1) * sector]
         bit = lambda n: (zone[n >> 3] >> (n & 7)) & 1
-        # Allocation bits follow the 4 byte header (and the record in zone 0); the
-        # spare beyond the header is unused space at the end of the zone
-        base = z * alloc - ZONE0_BITS - ZONE_SPARE  # global bit = base + local bit
-        p = ZONE_SPARE + (ZONE0_BITS if z == 0 else 0)
-        while p < zone_bits:
+        # Allocation bits follow the 4 byte header (and the record in zone 0). Any
+        # spare beyond that is unused space at the end of the zone
+        base = z * alloc - ZONE0_BITS - 32  # global bit = base + local bit
+        p = 32 + (ZONE0_BITS if z == 0 else 0)
+        # Free fragments are chained from the header, and their id field is the link
+        link = (zone[1] | zone[2] << 8) & 0x7FFF
+        gap = 8 + link if link else None
+        while p < zone_bits - (zone_spare - 32):
             v = 0
             for i in range(idlen):
                 v |= bit(p + i) << i
@@ -129,22 +133,77 @@ def _new_map_fragments(image, rec):
             q += 1
             if q > zone_bits:
                 break
-            frags.setdefault(v, []).append(((base + p) * bpmb, (q - p) * bpmb))
+            if p == gap:
+                gap = p + v if v else None
+            else:
+                frags.setdefault(v, []).append(((base + p) * bpmb, (q - p) * bpmb))
             p = q
+    # Object 2 holds the root, and FileCore starts it at the map zone
+    if 2 in frags:
+        frags[2].sort(key=lambda piece: piece[0] < map_addr)
     return frags, sector, struct.unpack("<I", rec[12:16])[0]
 
 
-def read_floppy(image, problems=None):
+def read_jfd(raw):
+    """A flat 1K-sector image from a JFD track dump, and the byte offsets of sectors
+    it lacks. Copy protection lives in extra or odd tracks; the standard sectors
+    around it are taken by their ids, whatever order they come in."""
+    if raw[:2] == b"\x1f\x8b":
+        raw = gzip.decompress(raw)
+    if raw[:4] != b"JFDI":
+        raise ValueError("not a JFD")
+    tracks_at, sectors_at, data_at = struct.unpack("<3I", raw[24:36])
+    if data_at == 0xFFFFFFFF:
+        raise ValueError("JFD holds no data")
+    count = (sectors_at - tracks_at) // 4
+    tracks = struct.unpack("<%dI" % count, raw[tracks_at:sectors_at])
+
+    def sectors(track):
+        at = sectors_at + tracks[track]
+        while struct.unpack("<I", raw[at:at + 4])[0] != 0xFFFFFFFF:
+            yield struct.unpack("<II", raw[at:at + 8])
+            at += 8
+
+    sizes = [sum(h & 3 == 3 for h, _ in sectors(t)) for t in range(count) if tracks[t] != 0xFFFFFFFF]
+    spt = 10 if sizes and max(set(sizes), key=sizes.count) > 5 else FLOPPY_SPT  # F or D/E
+    image = bytearray(160 * spt * 1024)
+    holes = set()
+    for track in range(160):
+        have = {}
+        if track < count and tracks[track] != 0xFFFFFFFF:
+            for header, offset in sectors(track):
+                number = (header >> 8) & 255
+                if header & 3 == 3 and not header & 0x30 and number < spt:
+                    have.setdefault(number, offset)
+        for number in range(spt):
+            where = (track * spt + number) * 1024
+            if number in have:
+                start = data_at + have[number]
+                image[where:where + 1024] = raw[start:start + 1024]
+            else:
+                holes.add(where)
+    return bytes(image), holes
+
+
+def read_floppy(image, problems=None, holes=()):
     """The root Entry of an ADFS image. Raises ValueError for anything else.
 
     Dumps are often a few K short. Reads past the end come back as zeros, as off a
     real disc with a bad track, and whatever that breaks is noted in problems. A
-    hard disc image reads too, through the record in its boot block."""
+    hard disc image reads too, through the record in its boot block. holes lists
+    the offsets of 1K sectors known to be missing, and a file on one is a problem."""
     if len(image) < 0x1000:
         raise ValueError("too small")
     if problems is None:
         problems = []
     image = bytes(image) + bytes(0xC8000 - len(image)) if len(image) < 0xC8000 else image
+    missing = [0]
+
+    def touch(start, length):
+        if holes:
+            for at in range(start & ~1023, start + length, 1024):
+                missing[0] += at in holes
+
     if image[0x401:0x405] in (b"Nick", b"Hugo"):
         root_addr, unit = 0x400, 256
     elif image[0x201:0x205] == b"Hugo":
@@ -152,7 +211,11 @@ def read_floppy(image, problems=None):
     else:
         root_addr = unit = None
     if unit:
-        read = lambda address, length: image[address * unit:address * unit + length]
+        def read(address, length):
+            start = address * unit
+            touch(start, length)
+            return image[start:start + length]
+
         root_at = root_addr // unit
     else:
         rec = image[4:64]  # a floppy's map is at the start
@@ -163,11 +226,20 @@ def read_floppy(image, problems=None):
         frags, sector, root_at = _new_map_fragments(image, rec)
 
         def read(address, length):
+            if not length:
+                return b""
             pieces = frags.get(address >> 8)
             if not pieces:
                 raise ValueError("fragment %x missing" % (address >> 8))
-            buf = b"".join(image[a:a + n] for a, n in pieces)
             offset = ((address & 255) - 1) * sector if address & 255 else 0
+            skip, left = offset, length
+            for a, n in pieces:
+                use = min(n - skip, left) if skip < n else 0
+                if use > 0:
+                    touch(a + skip, use)
+                    left -= use
+                skip = max(0, skip - n)
+            buf = b"".join(image[a:a + n] for a, n in pieces)
             return buf[offset:offset + length]
 
     def walk(address, name, path):
@@ -182,10 +254,13 @@ def read_floppy(image, problems=None):
                 sub.load, sub.exec_, sub.attrs = load, exec_, attrs
                 node.add(sub)
             else:
+                missing[0] = 0
                 data = read(where, length)
                 if len(data) != length:
                     problems.append("%s.%s: %d of %d bytes" % (path, child, len(data), length))
                     data = data + bytes(length - len(data))
+                if missing[0]:
+                    problems.append("%s.%s: on a missing sector" % (path, child))
                 node.add(Entry(child, load, exec_, attrs, data))
         return node
 
@@ -277,12 +352,11 @@ class TooBig(Exception):
     pass
 
 
-def build_disc(root, name, log2_bpmb, min_zones=3, share="none", small_first=False):
+def build_disc(root, name, log2_bpmb, min_zones=3):
     """Image bytes for the tree under root, or TooBig when it needs more zones.
 
-    share says which small objects may share a fragment: all, dirs or none. Shared
-    fragments read fine but *CheckMap stops at some of their objects, by a rule I
-    have not found, so none is the default and every object gets a fragment."""
+    Small files share a fragment with their siblings and nothing else, which is the
+    only sharing *CheckMap follows (see ReallyShared in FileCore)."""
     bpmb = 1 << log2_bpmb
     bin_bits = ID_LEN + 1
     bin_bytes = bin_bits * bpmb
@@ -306,21 +380,26 @@ def build_disc(root, name, log2_bpmb, min_zones=3, share="none", small_first=Fal
     # *CheckMap counts anything else against the map
     empty = [e for e in objects if not e.is_dir and not e.data]
     objects = [e for e in objects if e.is_dir or e.data]
+    parent = {id(c): id(root) for c in root.children.values()}
+    for _, entry in root.walk():
+        if entry.is_dir:
+            parent.update((id(c), id(entry)) for c in entry.children.values())
     frags = []
-    bins = []  # (sectors left, frag)
-    for entry in sorted(objects, key=size_of, reverse=not small_first):
-        if size_of(entry) > bin_bytes or share == "none" or (share == "dirs" and not entry.is_dir):
+    bins = {}  # parent -> [[sectors left, frag]]
+    for entry in sorted(objects, key=size_of, reverse=True):
+        if size_of(entry) > bin_bytes or entry.is_dir:
             frags.append(_Frag(aligned(max(bin_bits, (size_of(entry) + bpmb - 1) // bpmb)), [(entry, 0)]))
             continue
         need = sectors_of(entry)
-        for b in bins:
+        siblings = bins.setdefault(parent[id(entry)], [])
+        for b in siblings:
             if b[0] >= need:
                 b[1].objects.append((entry, sectors_per_bin - b[0]))
                 b[0] -= need
                 break
         else:
             frag = _Frag(bin_bits, [(entry, 0)])
-            bins.append([sectors_per_bin - need, frag])
+            siblings.append([sectors_per_bin - need, frag])
             frags.append(frag)
     if len(frags) + FIRST_ID >= 1 << ID_LEN:
         raise TooBig("%d fragments" % len(frags))

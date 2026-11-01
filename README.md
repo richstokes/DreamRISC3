@@ -23,7 +23,7 @@ RISC OS 3.11 running natively on the Sega Dreamcast, built on KallistiOS.
 - Physical keyboard, mouse and controller are untested on hardware, and nobody has looked at the real video output yet
 - **Hard disc on SD**: with an SD card on the serial port adapter, RISC OS gets a real ADFS hard disc at `:4`, up to ~476MB. Saves survive power off. **Formatting erases the whole card**, and the first boot asks first (A/Y to format, B/N to skip)
 - With no card, floppy `:0` holds an ADFS E disc called DreamRISC. Saves there are lost at power off
-- **Software archive**: the build bundles the Acorn Archimedes TOSEC set (136 titles: games, apps, demos, compilations) as a read-only ADFS hard disc called `Archive`, streamed off the CD. It mounts as `:4`, or `:5` with an SD card. The original ARM code runs through the interpreter in `src/interp.c`. Lemmings and Repton 3 have been played from it on the harness; the rest is untested, and anything that insists on `ADFS::0` or copy protection won't run. `scripts/build-dc.sh --include-archive-software off` leaves it out
+- **Software archive**: the build bundles Archimedes software from five archive.org collections, deduplicated by content (261 titles: games, apps, demos, compilations), as a read-only ADFS hard disc called `Archive`, streamed off the CD. It mounts as `:4`, or `:5` with an SD card. The original ARM code runs through the interpreter in `src/interp.c`. A handful have been launched on the harness (Lemmings, Pacmania, Castle Blackheart, Gods, Cycloids); the rest are untested. Most of these titles are commercial, so images built with the archive should not be published. Anything that insists on its floppy (Chocks Away says `Drive empty`) or checks copy protection won't run. `scripts/build-dc.sh --include-archive-software off` leaves it out
 - The desktop runs in mode 27, a true 640x480 in 16 colours. Lower resolution modes, like Lander's, are still stretched to fit
 - Sound plays through the AICA: beeps, BASIC's `SOUND` and anything else using the RISC OS sound system. Checked by recording it on the harness and by ring counters in Flycast; nobody has listened to it on a console yet
 - `!Draw` and `!Paint` load on demand from disc as code overlays, and rarely used ROM pages stream too. Verified on real hardware over dcload and from a disc image in Flycast; reading a real disc on the console is untested
@@ -55,7 +55,7 @@ Host tools: KallistiOS, Python 3, meson, ninja, pkg-config and libisofs (`brew i
 scripts/build-dc.sh
 ```
 
-The archive software is on by default (`--include-archive-software on|off`). The first build downloads ~70MB of zips from archive.org into `/tmp/archimedes-archive`, where they stay cached, and `tools/archive-hd.py` unpacks the floppies into `build/archive.hd`. `build/archive.hd.txt` maps each folder on the disc back to its archive name.
+The archive software is on by default (`--include-archive-software on|off`). The first build downloads ~600MB from archive.org, one file at a time, into `/tmp/archimedes-archive`, where it stays cached (macOS may clear `/tmp` on reboot), and `tools/archive-hd.py` unpacks the floppies into `build/archive.hd`, ~230MB. One collection is 7z, so with no `7z` tool on the path `py7zr` is installed into `build/pydeps`. `build/archive.hd.txt` maps each folder on the disc back to its archive name.
 
 ```bash
 scripts/run-flycast.sh

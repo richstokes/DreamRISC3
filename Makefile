@@ -155,8 +155,11 @@ build/dreamrisc.elf: $(XLAT_DC) $(DCOBJ)/mach.o $(DCOBJ)/fdc.o $(DCOBJ)/ide.o $(
 
 # The Archimedes software archive as an ADFS hard disc, streamed off the CD.
 # Downloads are cached under /tmp/archimedes-archive, so only the first build is slow.
+# One source is 7z: with no 7z tool, py7zr goes into build/pydeps, not the system.
 build/archive.hd: tools/archive-hd.py tools/adfs.py
-	python3 tools/archive-hd.py $@
+	@command -v 7zz >/dev/null || command -v 7z >/dev/null || PYTHONPATH=build/pydeps python3 -c 'import py7zr' 2>/dev/null || \
+		python3 -m pip install -q --target build/pydeps py7zr || true
+	PYTHONPATH=build/pydeps python3 tools/archive-hd.py $@
 
 # Disc image tool, vendored under tools/mkdcdisc (see tools/mkdcdisc/VENDOR.md).
 # Built with the host compiler, so run this before sourcing the KOS environment.

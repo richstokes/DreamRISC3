@@ -1,30 +1,53 @@
 #!/usr/bin/env python3
-"""Fetch the Archimedes software archive and bundle it as an ADFS hard disc image.
+"""Fetch Archimedes software collections and bundle them as an ADFS hard disc image.
 
-Each zip the archive lists is downloaded once into the cache and the floppy inside it
-unpacked onto the disc under Apps, Games, Demos or Compilatns, one folder per title.
-Variant dumps ([a], [b], [cr] and so on) of a title are skipped when a plain one is
-there, and the disks of a multi-disk title share a folder. A ReadMe in the root maps
-each folder back to its archive name.
+The collections are read in SOURCES order and each file is downloaded once into the
+cache. Their floppies (ADF, or JFD track dumps with the protection tracks skipped)
+are unpacked onto the disc under Apps, Games, Demos or Compilatns, one folder per
+title, and the disks of a multi-disk title share a folder.
 
-usage: archive-hd.py OUT [--cache DIR] [--index URL] [--limit N] [--refresh]
+The collections overlap heavily and spell titles differently, so duplicates are
+found by what is on the disc as well as by name: a disk goes if its title and disk
+number are taken, if nearly all of its bytes are already on the image, or if about
+half are and its title is close to the one they came from. Sound dumps are placed
+before damaged ones, so a broken copy only survives when nothing better exists. A
+ReadMe in the root maps each folder back to its archive name.
+
+usage: archive-hd.py OUT [--cache DIR] [--limit N] [--refresh]
+
+No-Intro's files are 7z: that source needs a 7z or 7zz binary, or the py7zr module,
+and is skipped with a warning otherwise.
 """
 import argparse
+import difflib
+import hashlib
 import html
+import json
 import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
 import urllib.parse
 import urllib.request
 import zipfile
 
 import adfs
+from struct import error as struct_error
 
 INDEX = ("https://ia903209.us.archive.org/view_archive.php?archive=/24/items/"
          "Acorn_Archimedes_TOSEC_2012_04_23/Acorn_Archimedes_TOSEC_2012_04_23.zip")
 CACHE = "/tmp/archimedes-archive"
-FOLDERS = {"Applications": "Apps", "Games": "Games", "Demos": "Demos", "Compilations": "Compilatns"}
+# archive.org items after the index above, best first
+SOURCES = ("TOSEC-Acorn", "No-Intro_AA", "20240825_20240825_0053", "netmanyagi_acorn-archimedes", "Acron-Archimedes")
+FOLDERS = {"Applications": "Apps", "Educational": "Apps", "Miscellaneous": "Apps", "Games": "Games",
+           "Demos": "Demos", "Compilations": "Compilatns"}
+SKIP = re.compile(r"blank \d+k|catalogue|boot floppy|fileserver|^zzz", re.I)  # not software to run
+SAME_BYTES = 0.9  # share of a disk already on the image that makes it a duplicate
+LIKELY_SAME = 0.5  # the same, when its title is also close to the title they came from
+SAME_TITLE = 0.8
 DISC_NAME = "Archive"
 BAD_DUMP = ("b", "o", "u", "v")  # TOSEC flags for dumps known to be broken
 
@@ -61,18 +84,91 @@ def listing(cache, index_url, refresh):
     return rows
 
 
+def metadata_files(item, cache, refresh):
+    """[(download url, file name)] for an archive.org item."""
+    path = os.path.join(cache, "meta", item + ".json")
+    url = "https://archive.org/metadata/" + item
+    if not fetch(url, path, refresh):
+        print("cannot list %s, skipping it" % item, file=sys.stderr)
+        return []
+    rows = []
+    for f in json.load(open(path)).get("files", []):
+        name = f["name"]
+        if name.endswith((".zip", ".7z")) and (item != "TOSEC-Acorn" or name.startswith("Archimedes/")):
+            rows.append(("https://archive.org/download/%s/%s" % (item, urllib.parse.quote(name)), name))
+    return rows
+
+
+def members(path):
+    """[(name, bytes)] of the disc images in a downloaded archive."""
+    images = (".adf", ".adl", ".img", ".jfd")
+    if path.endswith(".zip"):
+        z = zipfile.ZipFile(path)
+        return [(m, z.read(m)) for m in z.namelist() if m.lower().endswith(images)]
+    with tempfile.TemporaryDirectory() as tmp:
+        tool = shutil.which("7zz") or shutil.which("7z")
+        if tool:
+            subprocess.run([tool, "x", "-y", "-o" + tmp, path], check=True, stdout=subprocess.DEVNULL)
+        else:
+            import py7zr  # noqa: E402 - optional, only for 7z sources
+            with py7zr.SevenZipFile(path) as z:
+                z.extractall(tmp)
+        out = []
+        for name in sorted(os.listdir(tmp)):
+            if name.lower().endswith(images):
+                with open(os.path.join(tmp, name), "rb") as f:
+                    out.append((name, f.read()))
+        return out
+
+
+def can_unpack_7z():
+    if shutil.which("7zz") or shutil.which("7z"):
+        return True
+    try:
+        import py7zr  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
 def parse_name(stem):
-    """TOSEC name -> (title, disk number or 0, variant rank: 0 plain, 1 alternate, 2 bad)."""
-    title = stem.split(" (", 1)[0].strip()
-    disk = re.search(r"\(Disk (\d+) of \d+\)", stem)
+    """TOSEC or No-Intro name -> (title, disk number or 0, rank: 0 plain, 1 variant, 2 bad)."""
+    title = re.split(r" \(|\[", stem, 1)[0].strip()
+    title = re.sub(r",? [Tt]he$", "", title)
+    disk = re.search(r"\(Disk (\d+)", stem)
     flags = re.findall(r"\[([a-z]+)[^\]]*\]", stem)
-    rank = 0
+    rank = 1 if re.search(r"\((Alt|Beta|Proto)", stem) else 0
     for f in flags:
         if f in BAD_DUMP:
             rank = 2
         elif f in ("a", "cr", "h", "t", "f", "m", "p", "tr") and rank < 1:
             rank = 1
     return title, int(disk.group(1)) if disk else 0, rank
+
+
+def title_key(title):
+    """What is left of a title when spelling, articles and version numbers go."""
+    title = re.sub(r" [vV]\d[\d.]*[a-zA-Z]?\b.*$", "", re.sub(r"^The ", "", title))
+    return re.sub(r"[^a-z0-9]", "", title.lower())
+
+
+def category_of(path, source):
+    """The disc folder for a file, or None for what is not software to run."""
+    parts = path.split("/")
+    if source == "TOSEC-Acorn":
+        return FOLDERS.get(parts[1])
+    if len(parts) > 1 and parts[1].startswith("Acorn Archimedes - "):
+        return FOLDERS.get(parts[1][len("Acorn Archimedes - "):].split(" (")[0])
+    name = parts[-1]
+    if re.search(r"multi-program|collection|compilation", name, re.I):
+        return "Compilatns"
+    return "Demos" if re.search(r"\bdemos?\b", name, re.I) and "(demo" not in name else "Games"
+
+
+def file_hashes(tree):
+    """{hash: size} of the files in a tree. Tiny ones say nothing about identity."""
+    return {hashlib.sha1(e.data).digest(): len(e.data)
+            for _, e in tree.walk() if not e.is_dir and len(e.data) >= 256}
 
 
 def folder_name(title, taken):
@@ -143,86 +239,122 @@ def split_big(folder):
             sub.add(t)
 
 
+def candidates(args):
+    """One tuple per disc image in every source, in the order they should be tried."""
+    found = []
+    sources = [("TOSEC", listing(args.cache, args.index, args.refresh))]
+    for item in SOURCES:
+        if item == "No-Intro_AA" and not can_unpack_7z():
+            print("no 7z tool or py7zr, skipping %s" % item, file=sys.stderr)
+            continue
+        sources.append((item, metadata_files(item, args.cache, args.refresh)))
+    for order, (source, rows) in enumerate(sources):
+        for url, path in rows:
+            folder = category_of(path, source)
+            leaf = os.path.basename(path)
+            if not folder or SKIP.search(leaf):
+                continue
+            where = "zips" if source == "TOSEC" else os.path.join("sources", source)
+            local = path.replace("/", "__") if source != "TOSEC" else leaf
+            zip_path = os.path.join(args.cache, where, local)
+            if not fetch(url, zip_path):
+                print("  cannot download %s" % leaf, file=sys.stderr)
+                continue
+            try:
+                parts = members(zip_path)
+            except Exception as e:  # noqa: BLE001 - a bad archive just loses that title
+                print("  unreadable %s: %s" % (leaf, e), file=sys.stderr)
+                continue
+            for member, raw in parts:
+                stem = os.path.splitext(os.path.basename(member))[0]
+                problems = []
+                try:
+                    if member.lower().endswith(".jfd"):
+                        image, holes = adfs.read_jfd(raw)
+                        tree = adfs.read_floppy(image, problems, holes)
+                    else:
+                        tree = adfs.read_floppy(raw, problems)
+                except (ValueError, IndexError, KeyError, OSError, struct_error) as e:
+                    print("  unreadable %s: %s" % (stem, e), file=sys.stderr)
+                    continue
+                if not tree.children:
+                    continue
+                title, disk, rank = parse_name(stem)
+                damaged = rank == 2 or bool(problems)
+                found.append((damaged, order, rank, folder, title, disk, stem, tree, problems))
+    found.sort(key=lambda c: c[:3])
+    return found
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("out")
     ap.add_argument("--cache", default=CACHE)
     ap.add_argument("--index", default=INDEX)
     ap.add_argument("--limit", type=int, default=0, help="only the first N titles (for testing)")
-    ap.add_argument("--refresh", action="store_true", help="fetch the index again")
-    ap.add_argument("--map-unit", type=int, default=0, help="log2 bytes per map bit (default: smallest that fits)")
+    ap.add_argument("--refresh", action="store_true", help="fetch the listings again")
     args = ap.parse_args()
 
-    rows = listing(args.cache, args.index, args.refresh)
-    # Best dump per (category, title, disk)
-    best = {}
-    for url, path in rows:
-        parts = path.split("/")
-        category = re.sub(r"^Acorn Archimedes - ", "", parts[1]).split(" (")[0]
-        folder = FOLDERS.get(category)
-        if not folder:
-            print("skipping unknown category %s" % category, file=sys.stderr)
+    titles = {}  # title key -> [folder, title, {disk: tree}, [sources]]
+    seen = {}  # file hash -> title key that brought it
+    dropped = {"same title": 0, "same bytes": 0}
+    for damaged, _, _, folder, title, disk, stem, tree, problems in candidates(args):
+        key = title_key(title)
+        if key in titles and disk in titles[key][2]:
+            dropped["same title"] += 1
             continue
-        stem = os.path.splitext(parts[-1])[0]
-        title, disk, rank = parse_name(stem)
-        key = (folder, title, disk)
-        if key not in best or rank < best[key][0]:
-            best[key] = (rank, url, stem)
+        hashes = file_hashes(tree)
+        total = sum(hashes.values()) or 1
+        overlap = {}
+        for h, size in hashes.items():
+            if h in seen and seen[h] != key:
+                overlap[seen[h]] = overlap.get(seen[h], 0) + size
+        shared = sum(hashes[h] for h in hashes if h in seen and seen[h] != key) / total
+        near = max(overlap, key=overlap.get, default=None)
+        # Numbers differ between sequels, which often reuse most of their predecessor
+        close = (near and difflib.SequenceMatcher(None, near, key).ratio() >= SAME_TITLE
+                 and re.sub(r"\D", "", near) == re.sub(r"\D", "", key))
+        if shared >= SAME_BYTES or (close and shared >= LIKELY_SAME):
+            dropped["same bytes"] += 1
+            print("  duplicate of %s: %s" % (near, stem), file=sys.stderr)
+            continue
+        for p in problems:
+            print("  %s: %s" % (stem, p), file=sys.stderr)
+        entry = titles.setdefault(key, [folder, title, {}, []])
+        entry[2][disk] = tree
+        entry[3].append(stem + (" (damaged)" if damaged else ""))
+        for h in hashes:
+            seen.setdefault(h, key)
 
     root = adfs.Entry("$", attrs=0x08)
     readme = ["DreamRISC software archive", "", "Folder: archive name", ""]
     taken = {}
-    titles = sorted({(folder, title) for folder, title, disk in best})
+    chosen = sorted(titles.values(), key=lambda t: (t[0], t[1].lower()))
     if args.limit:
-        titles = titles[:args.limit]
-    done = missing = broken = 0
-    for folder, title in titles:
+        chosen = chosen[:args.limit]
+    done = 0
+    for folder, title, disks, stems in chosen:
         name = folder_name(title, taken.setdefault(folder, set()))
         dest = adfs.Entry(name, attrs=0x08)
-        sources = []
-        for disk in sorted(d for f, t, d in best if (f, t) == (folder, title)):
-            rank, url, stem = best[(folder, title, disk)]
-            zip_path = os.path.join(args.cache, "zips", os.path.basename(urllib.parse.unquote(url)))
-            if not fetch(url, zip_path):
-                print("  cannot download %s" % stem, file=sys.stderr)
-                missing += 1
-                continue
-            try:
-                z = zipfile.ZipFile(zip_path)
-                members = [m for m in z.namelist() if m.lower().endswith((".adf", ".adl", ".img"))]
-                # A zip can hold a plain dump and an [a] one; the plain one sorts first
-                members.sort(key=lambda m: parse_name(os.path.splitext(m)[0])[2])
-                problems = []
-                tree = adfs.read_floppy(z.read(members[0]), problems)
-            except (zipfile.BadZipFile, ValueError, IndexError) as e:
-                print("  unreadable %s: %s" % (stem, e), file=sys.stderr)
-                broken += 1
-                continue
-            for p in problems:
-                print("  %s: %s" % (stem, p), file=sys.stderr)
+        for disk in sorted(disks):
+            tree = disks[disk]
             sanitise(tree)
             merge(dest, tree, "Disk%d" % disk if disk else None)
-            sources.append(stem + (" (bad dump)" if rank == 2 else ""))
-        if not dest.children:
-            continue
         root.subdir(folder).add(dest)
-        readme.append("%s.%s: %s" % (folder, name, "; ".join(sources)))
+        readme.append("%s.%s: %s" % (folder, name, "; ".join(stems)))
         done += 1
     for folder in root.children.values():
         split_big(folder)
     text = ("\n".join(readme) + "\n").encode("latin-1", "replace")
     root.add(adfs.Entry("ReadMe", 0xFFFFFFFF, 0, 0x13, text))
 
-    if args.map_unit:
-        image, log2_bpmb = adfs.build_disc(root, DISC_NAME, args.map_unit), args.map_unit
-    else:
-        image, log2_bpmb = adfs.build_smallest(root, DISC_NAME)
+    image, log2_bpmb = adfs.build_smallest(root, DISC_NAME)
     with open(args.out, "wb") as f:
         f.write(image)
     with open(args.out + ".txt", "w") as f:
         f.write("\n".join(readme) + "\n")
-    print("%s: %d titles, %d MB, %d byte map units; %d downloads missing, %d images unreadable"
-          % (args.out, done, len(image) >> 20, 1 << log2_bpmb, missing, broken))
+    print("%s: %d titles, %d MB, %d byte map units; dropped %d by title and %d by content"
+          % (args.out, done, len(image) >> 20, 1 << log2_bpmb, dropped["same title"], dropped["same bytes"]))
 
 
 if __name__ == "__main__":
