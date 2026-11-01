@@ -65,6 +65,9 @@ build/dreamrisc-host: $(XLAT_HOST) $(HOSTOBJ)/mach.o $(HOSTOBJ)/fdc.o $(HOSTOBJ)
 
 # Experiment: harnesses with the ARM interpreter. dreamrisc-interp falls back to it for
 # RAM and unrecompiled code; dreamrisc-interpall runs everything through it, ROM too.
+# The Dreamcast build carries the ARM interpreter, which anything loaded off a
+# disc runs through, including the whole software archive. INTERP= leaves it out.
+INTERP ?= 1
 INTERP_OBJ = $(filter-out $(HOSTOBJ)/mach.o,$(XLAT_HOST) $(HOSTOBJ)/fdc.o $(HOSTOBJ)/ide.o $(HOSTOBJ)/hdformat.o $(HOSTOBJ)/main.o $(HOSTOBJ)/net.o $(HOSTOBJ)/net_sock.o $(HOSTOBJ)/net_host.o $(HOSTOBJ)/web.o)
 
 build/dreamrisc-interp: src/mach.c src/interp.c src/cpu.h $(INTERP_OBJ)
