@@ -997,6 +997,9 @@ static u8 app_running[8];
 static u32 app_frame_us;
 
 static block_fn table_find(const block_t *table, u32 mask, u32 key);
+#ifdef ARM_INTERP
+void arm_interp(u32 pc);
+#endif
 
 u32 mach_overlay_loads(void)
 {
@@ -1110,6 +1113,17 @@ static u32 fetch_word(u32 pc)
 
 u32 mach_miss_pc;
 
+/* Where the interpreter fetches from. ROM pages may be cold. */
+const u8 *mach_code_page(u32 pc)
+{
+	u8 *page = rtab[PRIV_SUPER][PAGE_INDEX(pc)];
+	if (!page && pc >= 0x3800000u && rom_page_at(pc) >= 0) {
+		rom_page_in(rom_page_at(pc));
+		page = rtab[PRIV_SUPER][PAGE_INDEX(pc)];
+	}
+	return page;
+}
+
 u32 mach_peek(u32 addr)
 {
 	return fetch_word(addr & ~3u);
@@ -1120,6 +1134,9 @@ u32 mach_peek(u32 addr)
 static block_fn find_block(u32 pc)
 {
 	block_fn fn;
+#ifdef ARM_INTERP_ALL
+	return arm_interp;
+#endif
 	if (pc >= 0x3800000u) {
 		u32 key = 0x3800000u | (pc & 0x1FFFFFu);
 		fn = table_find(block_table, block_table_mask, key);
@@ -1135,6 +1152,9 @@ static block_fn find_block(u32 pc)
 			plat_fatal("jump to unmapped pc=%07X r14=%08X mode=%d\n", pc, R(14), C->psr & 3);
 		}
 		/* BASIC's SYS builds SWI instructions; the number is read by the handler */
+#ifdef ARM_INTERP
+		return arm_interp; /* anything in RAM, recompiled apps aside */
+#endif
 		if ((word >> 24) == 0xEF)
 			return swi_insn;
 		if ((word >> 25) == 0x75)
@@ -1143,6 +1163,10 @@ static block_fn find_block(u32 pc)
 			return ram_ldm;
 		fn = table_find(ram_table, ram_table_mask, word);
 	}
+#ifdef ARM_INTERP
+	if (!fn) /* a ROM path the static scan missed */
+		return arm_interp;
+#endif
 #ifndef STOP_ON_MISS
 	if (!fn) /* Report it to RISC OS as an abort, which kills only the task */
 		return prefetch_abort;
@@ -1364,6 +1388,10 @@ void mach_poll(u32 pc)
 void mach_dump(void)
 {
 	u32 i;
+#if defined(ARM_INTERP) && !defined(__sh__)
+	extern unsigned long long arm_insns;
+	plat_log("interpreted %llu ARM instructions\n", arm_insns);
+#endif
 	plat_log("abort addr=%08X pc=%07X ret=%08X C=%p state=%p\n", abort_addr, abort_pc, abort_ret,
 		(void *)C, (void *)&cpu_state);
 	for (i = 0; i < 15; i++)

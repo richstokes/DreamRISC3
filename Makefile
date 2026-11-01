@@ -63,6 +63,20 @@ host: build/dreamrisc-host
 build/dreamrisc-host: $(XLAT_HOST) $(HOSTOBJ)/mach.o $(HOSTOBJ)/fdc.o $(HOSTOBJ)/ide.o $(HOSTOBJ)/hdformat.o $(HOSTOBJ)/main.o $(HOSTOBJ)/net.o $(HOSTOBJ)/net_sock.o $(HOSTOBJ)/net_host.o $(HOSTOBJ)/web.o
 	$(HOSTCC) -o $@ $^
 
+# Experiment: harnesses with the ARM interpreter. dreamrisc-interp falls back to it for
+# RAM and unrecompiled code; dreamrisc-interpall runs everything through it, ROM too.
+INTERP_OBJ = $(filter-out $(HOSTOBJ)/mach.o,$(XLAT_HOST) $(HOSTOBJ)/fdc.o $(HOSTOBJ)/ide.o $(HOSTOBJ)/hdformat.o $(HOSTOBJ)/main.o $(HOSTOBJ)/net.o $(HOSTOBJ)/net_sock.o $(HOSTOBJ)/net_host.o $(HOSTOBJ)/web.o)
+
+build/dreamrisc-interp: src/mach.c src/interp.c src/cpu.h $(INTERP_OBJ)
+	$(HOSTCC) $(HOSTFLAGS) -O2 -DARM_INTERP -c src/mach.c -o $(HOSTOBJ)/mach_i.o
+	$(HOSTCC) $(HOSTFLAGS) -O2 -DARM_INTERP -c src/interp.c -o $(HOSTOBJ)/interp_i.o
+	$(HOSTCC) -o $@ $(INTERP_OBJ) $(HOSTOBJ)/mach_i.o $(HOSTOBJ)/interp_i.o
+
+build/dreamrisc-interpall: src/mach.c src/interp.c src/cpu.h $(INTERP_OBJ)
+	$(HOSTCC) $(HOSTFLAGS) -O2 -DARM_INTERP -DARM_INTERP_ALL -c src/mach.c -o $(HOSTOBJ)/mach_a.o
+	$(HOSTCC) $(HOSTFLAGS) -O2 -DARM_INTERP -DARM_INTERP_ALL -c src/interp.c -o $(HOSTOBJ)/interp_a.o
+	$(HOSTCC) -o $@ $(INTERP_OBJ) $(HOSTOBJ)/mach_a.o $(HOSTOBJ)/interp_a.o
+
 # Dreamcast build; run through scripts/build-dc.sh, which sources the KOS environment.
 DCOBJ = build/dc
 XLAT_DC = $(patsubst $(GEN)/%.c,$(DCOBJ)/%.o,$(XLAT_SRC))
