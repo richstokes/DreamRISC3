@@ -224,6 +224,9 @@ def sweep(rom, modules, code):
     # Handlers reached through relative tables nearly always begin by saving lr.
     code |= walk(rom, [pc for start, end in regions for pc in range(start, end, 4)
                        if word(rom, pc) & 0xFFFF4000 == 0xE92D4000 and plausible(rom, pc, 3)])
+    # Compiled C saves them the APCS way: MOV ip,sp then STMFD sp!,{..fp,ip,lr,pc}.
+    code |= walk(rom, [pc for start, end in regions for pc in range(start, end - 4, 4)
+                       if word(rom, pc) == 0xE1A0C00D and word(rom, pc + 4) & 0xFFFFD800 == 0xE92DD800])
     added = True
     while added:
         added = False

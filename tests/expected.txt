@@ -20,3 +20,4 @@ tests/menus.replay 217 F1A17D89
 tests/configure.replay 124 60C11776
 tests/romapps.replay 178 1A2A4554
 tests/scrap.replay 100 12F42061 build/test.adf
+tests/drawsave.replay 158 CED91BE0 build/test.adf

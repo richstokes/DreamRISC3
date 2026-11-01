@@ -1,0 +1,42 @@
+# Draw a shape, open Save from the menu, step on to File, save it and read it back.
+70 move -1000 1000
+74 move 55 -23
+76 button 1
+76.2 button 0
+84 move -1000 -1000
+85.5 move 32 70
+87 button 1
+87.1 button 0
+87.2 button 1
+87.3 button 0
+105 move -1000 1000
+106.5 move 355 -20
+108 button 1
+108.15 button 0
+120 move -1000 -1000
+121.5 move 133 100
+122 button 1
+122.15 button 0
+124 move 70 40
+125 button 1
+125.15 button 0
+126 move 40 -30
+127 button 1
+127.15 button 0
+127.3 button 1
+127.45 button 0
+130 move -30 60
+131 button 2
+131.15 button 0
+135 move 81 23
+138 shot build/dsv1.ppm
+139 move 95 0
+143 shot build/dsv2.ppm
+144 key 3 11 1
+144.1 key 2 13 1
+144.2 key 2 13 0
+144.3 key 3 11 0
+145 type adfs::0.$.Shape
+149 key 4 7 1
+149.1 key 4 7 0
+156 shot build/dsv3.ppm
