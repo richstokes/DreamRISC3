@@ -26,9 +26,11 @@ static uint16_t *fb_addr[2];
 static void clear_buffers(void);
 static u32 wrapped[160];
 static uint16_t row[640] __attribute__((aligned(32)));
-static uint16_t lut[256];
-static u32 lut_pair[256];
-static u32 last_pal[20];
+static uint16_t luts[2][256];
+static u32 lut_pairs[2][256];
+static const uint16_t *lut = luts[0];
+static const u32 *lut_pair = lut_pairs[0];
+static u32 last_pal[2][20];
 static int last_w, last_h, last_bpp, frame_count;
 static u32 last_start;
 static volatile u32 ring_in, ring_out, sound_rate, sound_held;
@@ -249,15 +251,15 @@ static inline uint16_t vidc_565(u32 e)
 	return (uint16_t)((r >> 3 << 11) | (g >> 2 << 5) | (b >> 3));
 }
 
-static void build_lut(const screen_t *s)
+static void build_lut(const screen_t *s, const u32 *palette, int set)
 {
 	int i;
 	for (i = 0; i < (1 << s->bpp); i++) {
-		u32 e = s->palette[i & 15];
+		u32 e = palette[i & 15];
 		if (s->bpp == 8)
 			e = (e & 0x737) | ((i & 0x10) >> 1) | ((i & 0x60) << 1) | ((i & 0x80) << 4);
-		lut[i] = vidc_565(e);
-		lut_pair[i] = lut[i] * 0x10001u;
+		luts[set][i] = vidc_565(e);
+		lut_pairs[set][i] = luts[set][i] * 0x10001u;
 	}
 }
 
@@ -409,7 +411,8 @@ void plat_frame(const screen_t *s)
 	int width = s->width > 640 ? 640 : s->width;
 	int scale, height = s->height;
 	u32 *sums = line_sum[back_fb];
-	int y, drawn = 0;
+	int y, drawn = 0, split = s->split_line >= 0 ? s->split_line : height;
+	const u32 *below = s->split_line >= 0 ? s->palette2 : s->palette;
 	if (++frame_count & 1 && s->start == last_start)
 		return;
 	last_start = s->start;
@@ -418,12 +421,15 @@ void plat_frame(const screen_t *s)
 	scale = 640 / width;
 	n = (u32)(width * s->bpp / 8);
 	if (width != last_w || height != last_h || s->bpp != last_bpp ||
-	    memcmp(last_pal, s->palette, sizeof(last_pal))) {
-		memcpy(last_pal, s->palette, sizeof(last_pal));
+	    memcmp(last_pal[0], s->palette, sizeof(last_pal[0])) ||
+	    memcmp(last_pal[1], below, sizeof(last_pal[1]))) {
+		memcpy(last_pal[0], s->palette, sizeof(last_pal[0]));
+		memcpy(last_pal[1], below, sizeof(last_pal[1]));
 		last_w = width;
 		last_h = height;
 		last_bpp = s->bpp;
-		build_lut(s);
+		build_lut(s, s->palette, 0);
+		build_lut(s, below, 1);
 		clear_buffers();
 		sums = line_sum[back_fb];
 	}
@@ -436,9 +442,12 @@ void plat_frame(const screen_t *s)
 			memcpy((u8 *)wrapped + part, s->ram + s->base, n - part);
 			src = (const u8 *)wrapped;
 		}
-		u32 sum = sum_line(s, src, n, y);
+		int part = y >= split;
+		u32 sum = sum_line(s, src, n, y) ^ (u32)part;
 		if (sum != sums[y]) {
 			sums[y] = sum;
+			lut = luts[part];
+			lut_pair = lut_pairs[part];
 			expand_line(s, src, width, scale);
 			overlay_cursor(s, y, width, scale);
 			put_row(y, height, width * scale);

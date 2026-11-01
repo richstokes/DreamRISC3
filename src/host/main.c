@@ -76,7 +76,7 @@ static void write_shot(void)
 			if (a >= s->end)
 				a = s->base + (a - s->end);
 			u32 v = (s->ram[a] >> (bit & 7)) & ((1u << s->bpp) - 1);
-			u32 e = s->palette[v & 15];
+			u32 e = (s->split_line >= 0 && y >= s->split_line ? s->palette2 : s->palette)[v & 15];
 			if (s->bpp == 8)
 				e = (e & 0x737) | ((v & 0x10) >> 1) | ((v & 0x60) << 1) | ((v & 0x80) << 4);
 			u32 c = rgb(e);

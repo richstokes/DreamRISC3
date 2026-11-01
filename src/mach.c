@@ -4,6 +4,9 @@
 #include <malloc.h>
 #endif
 #include <setjmp.h>
+#ifndef __sh__
+#include <stdio.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include "cpu.h"
@@ -754,9 +757,39 @@ static u32 ioc_read(u32 a)
 	return 0;
 }
 
+/* Games change the palette part way down the frame, most often to give a status
+ * panel its own colours. The presenter gets the palette from above the first such
+ * change and the line it happened on. */
+static u32 pal_top[20], frame_start_us;
+static int split_line = -1;
+#ifdef ARM_INTERP
+u32 vidc_pal_writes, vidc_when[8];
+#endif
+
+static int display_line(void)
+{
+	/* The frame interrupt comes at the end of the display, then the lines of flyback */
+	int since = (int)((u32)last_us - frame_start_us);
+	int blank = 312 - (vidc.vdend - vidc.vdstart);
+	return since / 64 - blank;
+}
+
 static void vidc_write(u32 v)
 {
 	u32 reg = v >> 26, byte = v >> 24, field = (v & 0xFFFFFF) >> 14;
+	if (reg <= 16 && split_line < 0 && vidc.reg[reg] != (v & 0xFFFFFF)) {
+		int line = display_line();
+		if (line > 0 && line < vidc.vdend - vidc.vdstart) {
+			memcpy(pal_top, vidc.reg, sizeof(pal_top));
+			split_line = line;
+		}
+	}
+#ifdef ARM_INTERP
+	if (reg < 16) {
+		vidc_pal_writes++;
+		vidc_when[((u32)last_us - frame_start_us) / 2501 & 7]++;
+	}
+#endif
 	vidc.reg[reg] = v & 0xFFFFFF;
 	switch (byte) {
 	case 0x8C: vidc.hdstart = (int)field; break;
@@ -1201,7 +1234,9 @@ static void present(void)
 	s.start = vinit;
 	s.base = vstart;
 	s.end = vend + 16;
-	s.palette = vidc.reg;
+	s.palette = split_line >= 0 ? pal_top : vidc.reg;
+	s.palette2 = vidc.reg;
+	s.split_line = split_line;
 	s.cursor_palette[0] = vidc.reg[0x11];
 	s.cursor_palette[1] = vidc.reg[0x12];
 	s.cursor_palette[2] = vidc.reg[0x13];
@@ -1322,6 +1357,8 @@ static void machine_tick(void)
 		flyback = 1;
 		ioc.irqa |= IRQA_VBLANK;
 		present();
+		split_line = -1;
+		frame_start_us = (u32)now;
 	} else if (flyback && now >= flyback_end_us) {
 		flyback = 0;
 	}
@@ -1391,6 +1428,25 @@ void mach_dump(void)
 #if defined(ARM_INTERP) && !defined(__sh__)
 	extern unsigned long long arm_insns;
 	plat_log("interpreted %llu ARM instructions\n", arm_insns);
+	if (getenv("DREAM_PROF")) {
+		extern u32 arm_hist[];
+		plat_log("palette writes %u by eighth:", vidc_pal_writes);
+		for (i = 0; i < 8; i++)
+			plat_log(" %u", vidc_when[i]);
+		plat_log("\n");
+		if (getenv("DREAM_RAM")) {
+			u32 a;
+			FILE *f = fopen(getenv("DREAM_RAM"), "wb");
+			for (a = 0; a < 0x90000; a += 4) {
+				u32 w = fetch_word(a);
+				fwrite(&w, 4, 1, f);
+			}
+			fclose(f);
+		}
+		for (i = 0; i < 0x80000 / 4; i++)
+			if (arm_hist[i])
+				plat_log("prof %05X %u\n", i * 4, arm_hist[i]);
+	}
 #endif
 	plat_log("abort addr=%08X pc=%07X ret=%08X C=%p state=%p\n", abort_addr, abort_pc, abort_ret,
 		(void *)C, (void *)&cpu_state);

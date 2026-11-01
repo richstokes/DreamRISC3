@@ -149,6 +149,8 @@ typedef struct {
 	const u8 *ram;
 	u32 ram_size, start, base, end; /* physical byte offsets; wraps end to base */
 	const u32 *palette;              /* VIDC 13-bit entries; 16 logical + border */
+	const u32 *palette2;             /* in force from split_line down, if that is not -1 */
+	int split_line;
 	u32 cursor_palette[3];
 	u32 cursor_addr;                 /* physical */
 	int cursor_x, cursor_y, cursor_h;
