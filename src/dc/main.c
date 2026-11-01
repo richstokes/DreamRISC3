@@ -129,19 +129,81 @@ static void sd_open(void)
 	printf("SD card: %lu sectors\n", (unsigned long)sd_sectors);
 }
 
-u32 plat_hd_sectors(void)
+/* The software archive is a read-only hard disc image on the CD. ADFS asks for one
+ * sector at a time and the GD-ROM is slow to seek, so reads go through a chunk
+ * cache; directory walks and file loads are mostly sequential. */
+#define AR_CHUNK 64 /* sectors */
+static file_t ar_file = FILEHND_INVALID;
+static u32 ar_sectors, ar_base = ~0u, ar_have;
+static u8 ar_buf[AR_CHUNK * 512] __attribute__((aligned(32)));
+
+static void archive_open(void)
 {
-	return sd_sectors;
+	char path[192];
+	int pass;
+	for (pass = 0; pass < 2 && ar_file == FILEHND_INVALID; pass++) {
+		snprintf(path, sizeof(path), pass ? "/pc%s/archive.hd" : "/cd/archive.hd", PC_ROOT);
+		ar_file = fs_open(path, O_RDONLY);
+	}
+	if (ar_file == FILEHND_INVALID)
+		return;
+	ar_sectors = (u32)(fs_total(ar_file) / 512);
+	printf("archive: %lu sectors\n", (unsigned long)ar_sectors);
 }
 
-int plat_hd_read(u32 lba, u8 *dest)
+static int archive_read(u32 lba, u8 *dest)
 {
-	return sd_read_blocks(lba, 1, dest);
+	u32 base = lba & ~(u32)(AR_CHUNK - 1);
+	if (base != ar_base) {
+		ssize_t got;
+		ar_base = ~0u;
+		/* The read may bypass the cache, so leave no stale lines behind it */
+		dcache_purge_range((uintptr_t)ar_buf, sizeof(ar_buf));
+		fs_seek(ar_file, (off_t)base * 512, SEEK_SET);
+		got = fs_read(ar_file, ar_buf, sizeof(ar_buf));
+		if (got < 512)
+			return -1;
+		ar_base = base;
+		ar_have = (u32)got / 512;
+	}
+	if (lba - base >= ar_have)
+		return -1;
+	memcpy(dest, ar_buf + (lba - base) * 512, 512);
+	return 0;
 }
 
-int plat_hd_write(u32 lba, const u8 *src)
+/* The card is unit 0 when present and the archive follows it; otherwise the
+ * archive is the master on its own. */
+static int is_card(int unit)
 {
-	return sd_write_blocks(lba, 1, src);
+	return unit == 0 && sd_sectors;
+}
+
+static int is_archive(int unit)
+{
+	return ar_sectors && unit == (sd_sectors ? 1 : 0);
+}
+
+u32 plat_hd_sectors(int unit)
+{
+	return is_card(unit) ? sd_sectors : is_archive(unit) ? ar_sectors : 0;
+}
+
+int plat_hd_writable(int unit)
+{
+	return is_card(unit);
+}
+
+int plat_hd_read(int unit, u32 lba, u8 *dest)
+{
+	if (is_card(unit))
+		return sd_read_blocks(lba, 1, dest);
+	return is_archive(unit) ? archive_read(lba, dest) : -1;
+}
+
+int plat_hd_write(int unit, u32 lba, const u8 *src)
+{
+	return is_card(unit) ? sd_write_blocks(lba, 1, src) : -1;
 }
 
 /* Either buffer may be on screen, so prompts go to both */
@@ -175,11 +237,18 @@ static int ask_format(void)
 	}
 }
 
+/* A card that is declined, unformattable or unreadable is dropped for the session */
 int plat_hd_prepare(void)
 {
-	int ok = 1, state = hd_is_formatted();
-	if (state)
-		return state > 0; /* unreadable: leave the card alone */
+	int ok = 1, state;
+	if (!sd_sectors)
+		return 1;
+	state = hd_is_formatted();
+	if (state) {
+		if (state < 0)
+			sd_sectors = 0; /* unreadable: leave the card alone */
+		return state > 0;
+	}
 	if (!ask_format()) {
 		ok = 0;
 	} else {
@@ -192,6 +261,8 @@ int plat_hd_prepare(void)
 		}
 	}
 	clear_buffers();
+	if (!ok)
+		sd_sectors = 0;
 	return ok;
 }
 
@@ -780,6 +851,7 @@ int main(int argc, char **argv)
 #ifndef HW_NO_SD /* a card replaces the floppy, and these tests need the floppy */
 	sd_open();
 #endif
+	archive_open();
 	mach_init(cmos_image);
 	mach_run(0);
 	return 0;

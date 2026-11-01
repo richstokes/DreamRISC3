@@ -299,6 +299,15 @@ static void rom_load_hot(void)
 		if (!ROM_IS_COLD(page)) {
 			u8 *mem = rom_cache + (size_t)i++ * PAGE_BYTES;
 			plat_rom_read((u32)page, mem);
+#ifdef ARM_INTERP_ALL
+			/* The recompiler's ADFS IDE patch (tools/armxlat.py ROM_PATCHES), so
+			 * the all-interpreted build sees the hard discs too */
+			if (page == 0xE1470 / PAGE_BYTES) {
+				u32 *w = (u32 *)(mem + (0xE1470 & (PAGE_BYTES - 1)));
+				if (*w == 0x1A000003u)
+					*w = 0xE1A00000u;
+			}
+#endif
 			rom_map(page, mem);
 		}
 	}
@@ -1446,6 +1455,12 @@ void mach_dump(void)
 		for (i = 0; i < 0x80000 / 4; i++)
 			if (arm_hist[i])
 				plat_log("prof %05X %u\n", i * 4, arm_hist[i]);
+		{
+			extern u32 arm_hist_rom[]; /* the 2MB ROM at 0x3800000, see interp.c */
+			for (i = 0; i < 0x200000 / 4; i++)
+				if (arm_hist_rom[i])
+					plat_log("prof %07X %u\n", 0x3800000u + i * 4, arm_hist_rom[i]);
+		}
 	}
 #endif
 	plat_log("abort addr=%08X pc=%07X ret=%08X C=%p state=%p\n", abort_addr, abort_pc, abort_ret,
@@ -1500,18 +1515,26 @@ void mach_init(const u8 *cmos_image)
 		plat_fatal("cannot allocate RAM\n");
 	memset(ram, 0, RAM_SIZE);
 	memcpy(cm.ram, cmos_image, 256);
-	if (plat_hd_sectors() && plat_hd_prepare()) {
+	plat_hd_prepare(); /* may drop the card, which moves the archive up to master */
+	for (i = 0; i < HD_UNITS; i++) {
+		u32 sectors = plat_hd_sectors(i);
+		if (!sectors)
+			break; /* a slave with no master is never configured */
+		ide_init(i, sectors, plat_hd_writable(i) ? "Dreamcast SD" : "DreamRISC archive");
+	}
+	if (i) {
 		/* IDEDiscs lives in the top bits of logical CMOS byte 0x87. Keep the
 		 * checksum at 0x3F right, or the kernel resets CMOS at boot. */
 		u8 old = cm.ram[0xC7];
-		cm.ram[0xC7] = (u8)((old & 0x3F) | 0x40);
+		cm.ram[0xC7] = (u8)((old & 0x3F) | (u8)(i << 6));
 		cm.ram[0x3F] = (u8)(cm.ram[0x3F] + cm.ram[0xC7] - old);
+	}
+	if (i && plat_hd_writable(0)) {
 		/* The card replaces the floppy, so it must be the default drive (logical
 		 * byte 0x0B, low bits), or ADFS:$ and the scrap directory find no disc. */
-		old = cm.ram[0x4B];
+		u8 old = cm.ram[0x4B];
 		cm.ram[0x4B] = (u8)((old & 0xF8) | 4);
 		cm.ram[0x3F] = (u8)(cm.ram[0x3F] + cm.ram[0x4B] - old);
-		ide_init(plat_hd_sectors());
 	}
 	cm.clock = cm.line = 1;
 	reset_maps();

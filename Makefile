@@ -140,6 +140,11 @@ dc: build/dreamrisc.elf $(OV_DC)
 build/dreamrisc.elf: $(XLAT_DC) $(DCOBJ)/mach.o $(DCOBJ)/fdc.o $(DCOBJ)/ide.o $(DCOBJ)/hdformat.o $(DCOBJ)/main.o $(DCOBJ)/images.o $(DCOBJ)/net.o $(DCOBJ)/net_sock.o $(DCOBJ)/net_dc.o $(DCOBJ)/web.o $(DCOBJ)/tls.o $(if $(INTERP),$(DCOBJ)/interp.o)
 	kos-cc -o $@ $^ -lppp -lmbedtls -lmbedx509 -lmbedcrypto -Wl,--wrap=realloc -Wl,-Map,build/dreamrisc.map
 
+# The Archimedes software archive as an ADFS hard disc, streamed off the CD.
+# Downloads are cached under /tmp/archimedes-archive, so only the first build is slow.
+build/archive.hd: tools/archive-hd.py tools/adfs.py
+	python3 tools/archive-hd.py $@
+
 # Disc image tool, vendored under tools/mkdcdisc (see tools/mkdcdisc/VENDOR.md).
 # Built with the host compiler, so run this before sourcing the KOS environment.
 MKDCDISC_SRC = tools/mkdcdisc

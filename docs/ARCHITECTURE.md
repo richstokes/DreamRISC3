@@ -128,6 +128,21 @@ Unresolved: during bring-up the second boot looked freshly formatted, which sugg
 
 Not tested: the format prompt on a real controller or keyboard (hardware tests use `HW_AUTOFORMAT`), SD speed under load, and pulling the card out while running.
 
+## Software archive
+
+A second IDE drive carries the Acorn Archimedes TOSEC set as a read-only ADFS hard disc, `archive.hd` on the CD. `src/ide.c` now models master and slave: the SD card is the master when there is one and the archive the slave, otherwise the archive is the master on its own, and `IDEDiscs` in CMOS is set to however many are there. Writes to the archive fail with an abort error. On the Dreamcast, reads go through a 32KB chunk cache in `src/dc/main.c`, since ADFS asks for a sector at a time and the GD-ROM is slow to seek. The harness takes the image as `DREAM_HD_RO`.
+
+`tools/archive-hd.py` builds the image: it downloads each zip the archive index lists into `/tmp/archimedes-archive` (once), reads the floppy inside with `tools/adfs.py`, and lays the files out under `Apps`, `Games`, `Demos` and `Compilatns`, one folder per title, split alphabetically past 77 entries. Variant dumps are dropped when a plain one exists, multi-disk titles merge into one folder, and a `ReadMe` in the root maps folders back to archive names. 171 of the 191 images read; the rest are truncated or not ADFS.
+
+`tools/adfs.py` writes the same new-map layout as `hdformat.c`, with the files in place. Things FileCore insists on, each found the hard way with `*CheckMap`:
+
+- With map units smaller than a sector, every fragment has to start and end on a sector boundary, or directories read back broken
+- Every zone needs a free fragment; a full zone makes the disc "not understood"
+- Small objects may only share a fragment with their siblings or their parent directory. `*CheckMap` frees a whole fragment once no sibling shares it, then spins forever looking for it when the next directory's file turns up. The builder gives every object its own fragment, which costs ~12MB on a 93MB disc
+- An empty file has disc address 1 (id 0) and no fragment
+
+`*CheckMap 4` reports `Map good` on discs of up to 40 titles. On the full 136-title disc it was still walking the tree after 15 minutes, since it rescans the whole 54KB map for each of 7800 objects, so that run was not finished.
+
 ## Network
 
 RISC OS 3.11 has no TCP/IP in ROM, and Acorn's Internet module was a disc-based ARM binary. So the stack is native (KOS) and the guest reaches it through DreamNet SWIs at `&CDC00`, a chunk from the range RISC OS leaves to users. `src/net.c` catches them in `swi_insn` before the kernel sees them. Results come back in r0 as a value or -errno, and there's no V-set error path, as nothing guest-side owns memory for an error block. We skipped Acorn's `Socket_*` numbers since no existing binary could call them anyway.

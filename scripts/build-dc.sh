@@ -1,14 +1,31 @@
 #!/bin/bash
 # Regenerate the recompiled ROM and build the Dreamcast ELF and CDI.
 # DC_MAKE_ARGS adds make variables, DC_CDI names the image.
+#   --skip-gen                        reuse the recompiled ROM
+#   --include-archive-software on|off bundle the Archimedes software archive as a
+#                                     hard disc on the CD (default on; downloads are
+#                                     cached under /tmp/archimedes-archive)
 set -euo pipefail
 root=$(cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
+skip_gen= archive=on
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --skip-gen) skip_gen=1 ;;
+    --include-archive-software=*) archive=${1#*=} ;;
+    --include-archive-software) shift; archive=${1:-} ;;
+    *) echo "unknown option $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+case "$archive" in on|off) ;; *) echo "--include-archive-software takes on or off" >&2; exit 2 ;; esac
 # Bundled disc-image tool (tools/mkdcdisc). MKDCDISC overrides it with another binary.
 # Built with the host toolchain, so this happens before the KOS environment is sourced.
 if [ -z "${MKDCDISC:-}" ]; then make mkdcdisc; MKDCDISC=build/mkdcdisc/mkdcdisc; fi
+# The archive image only depends on the tools and the cache, not on the ROM
+[ "$archive" = off ] || make build/archive.hd
 set +u; source "${KOS_ENV:-$HOME/.local/share/dreamcast/kos/environ.sh}"; set -u
-[ "${1:-}" = --skip-gen ] || make gen
+[ -n "$skip_gen" ] || make gen
 make -j"$(getconf _NPROCESSORS_ONLN)" dc ${DC_MAKE_ARGS:-}
 # Overlays run at a fixed address inside the ELF, so they link against it last.
 region=0x$(sh-elf-nm build/dreamrisc.elf | awk '$3 == "_overlay_region" {print $1}')
@@ -17,6 +34,7 @@ rm -rf build/disc; mkdir -p build/disc
 shopt -s nullglob # app units are a single file
 cp build/rom.bin build/disc/rom.bin
 if [ -n "${DC_ADF:-}" ]; then cp "$DC_ADF" build/disc/adfs.adf; else gunzip -c assets/adfs.adf.gz > build/disc/adfs.adf; fi
+[ "$archive" = off ] || cp build/archive.hd build/disc/archive.hd
 for table in build/dc/ov_*_table.o; do
   unit=$(basename "$table" | cut -d_ -f2)
   sh-elf-ld -T tools/overlay.ld --defsym=REGION="$region" --just-symbols=build/dreamrisc.elf \

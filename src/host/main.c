@@ -292,46 +292,80 @@ static void cmos_save(void)
 	}
 }
 
-/* A sparse file stands in for the SD card */
-static FILE *hd_file;
-static u32 hd_sectors;
+/* A sparse file (DREAM_HD) stands in for the SD card, and a read-only image
+ * (DREAM_HD_RO) for the archive streamed off the CD. The card is unit 0 when
+ * both are given, as on the console. */
+static FILE *hd_file[HD_UNITS];
+static u32 hd_sectors[HD_UNITS];
+static int hd_ro[HD_UNITS];
+static int hd_opened;
 
-u32 plat_hd_sectors(void)
+static void hd_open(void)
 {
-	const char *path = getenv("DREAM_HD");
-	if (path && !hd_file) {
-		hd_file = fopen(path, "r+b");
-		if (!hd_file) {
-			hd_file = fopen(path, "w+b");
-			fseek(hd_file, 8LL * 1000 * 1000 * 1000 - 1, SEEK_SET);
-			fputc(0, hd_file);
+	const char *rw = getenv("DREAM_HD"), *ro = getenv("DREAM_HD_RO");
+	int unit = 0;
+	hd_opened = 1;
+	if (rw) {
+		FILE *f = fopen(rw, "r+b");
+		if (!f) {
+			f = fopen(rw, "w+b");
+			fseek(f, 8LL * 1000 * 1000 * 1000 - 1, SEEK_SET);
+			fputc(0, f);
 		}
-		fseek(hd_file, 0, SEEK_END);
-		long long bytes = ftell(hd_file);
-		hd_sectors = bytes / 512 > 0xF000000 ? 0xF000000 : (u32)(bytes / 512);
+		hd_file[unit++] = f;
 	}
-	return hd_sectors;
+	if (ro) {
+		hd_file[unit] = fopen(ro, "rb");
+		if (!hd_file[unit])
+			plat_fatal("cannot open %s\n", ro);
+		hd_ro[unit++] = 1;
+	}
+	while (unit--) {
+		long long bytes;
+		fseek(hd_file[unit], 0, SEEK_END);
+		bytes = ftell(hd_file[unit]);
+		hd_sectors[unit] = bytes / 512 > 0xF000000 ? 0xF000000 : (u32)(bytes / 512);
+	}
 }
 
-int plat_hd_read(u32 lba, u8 *dest)
+u32 plat_hd_sectors(int unit)
 {
-	fseek(hd_file, (long long)lba * 512, SEEK_SET);
-	return fread(dest, 1, 512, hd_file) == 512 ? 0 : -1;
+	if (!hd_opened)
+		hd_open();
+	return hd_sectors[unit];
 }
 
-int plat_hd_write(u32 lba, const u8 *src)
+int plat_hd_writable(int unit)
 {
-	fseek(hd_file, (long long)lba * 512, SEEK_SET);
-	return fwrite(src, 1, 512, hd_file) == 512 ? 0 : -1;
+	if (!hd_opened)
+		hd_open();
+	return hd_file[unit] && !hd_ro[unit];
+}
+
+int plat_hd_read(int unit, u32 lba, u8 *dest)
+{
+	fseek(hd_file[unit], (long long)lba * 512, SEEK_SET);
+	return fread(dest, 1, 512, hd_file[unit]) == 512 ? 0 : -1;
+}
+
+int plat_hd_write(int unit, u32 lba, const u8 *src)
+{
+	if (hd_ro[unit])
+		return -1;
+	fseek(hd_file[unit], (long long)lba * 512, SEEK_SET);
+	return fwrite(src, 1, 512, hd_file[unit]) == 512 ? 0 : -1;
 }
 
 int plat_hd_prepare(void)
 {
-	int state = hd_is_formatted();
+	int state;
+	if (!plat_hd_writable(0))
+		return 1;
+	state = hd_is_formatted();
 	if (state)
 		return state > 0;
 	fprintf(stderr, "formatting hard disc\n");
-	return !hd_format(plat_hd_sectors());
+	return !hd_format(plat_hd_sectors(0));
 }
 
 const ov_header_t *plat_overlay_load(int unit)
@@ -397,8 +431,8 @@ int main(int argc, char **argv)
 		wav_header();
 		fclose(wav);
 	}
-	if (hd_file)
-		fflush(hd_file);
+	if (hd_file[0])
+		fflush(hd_file[0]);
 	fprintf(stderr, "overlay loads %u\n", mach_overlay_loads());
 	fprintf(stderr, "rom misses %u, pages touched %d, pack pages touched %d\n", mach_rom_misses(),
 		__builtin_popcount(pages_touched[0]) + __builtin_popcount(pages_touched[1]),

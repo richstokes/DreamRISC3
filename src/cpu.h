@@ -173,10 +173,12 @@ int fdc_ready(void);
 int fdc_present(void);
 void fdc_copy_sector(int index, u8 *dest); /* 1024 bytes */
 
-/* IDE drive (ide.c) and the formatter (hdformat.c) */
+/* IDE drives (ide.c) and the formatter (hdformat.c). Unit 0 is the master, which
+ * is the card when there is one, and unit 1 the slave. */
+#define HD_UNITS 2
 #define HD_HEADS 16
 #define HD_SPT 63
-void ide_init(u32 sectors);
+void ide_init(int unit, u32 sectors, const char *model);
 void ide_tick(uint64_t now);
 int ide_owns(u32 addr);
 u32 ide_read(u32 addr, int word);
@@ -200,10 +202,11 @@ const ov_header_t *plat_overlay_load(int unit); /* may block on disc */
 int plat_disc_open(void);      /* 0 for an empty drive */
 int plat_disc_read(u8 *sector); /* the next 1024 bytes; 0 at the end */
 void plat_disc_close(void);
-u32 plat_hd_sectors(void);      /* 0 when no hard disc is attached */
-int plat_hd_read(u32 lba, u8 *dest);
-int plat_hd_write(u32 lba, const u8 *src);
-int plat_hd_prepare(void);      /* offers to format; 0 leaves the disc unusable */
+int plat_hd_prepare(void);      /* offers to format the card; declined, it is dropped */
+u32 plat_hd_sectors(int unit);  /* 0 when nothing is attached there */
+int plat_hd_writable(int unit); /* the card is; a disc streamed off the CD is not */
+int plat_hd_read(int unit, u32 lba, u8 *dest);
+int plat_hd_write(int unit, u32 lba, const u8 *src);
 void plat_frame(const screen_t *screen);
 void plat_poll_input(void);
 void plat_sound(const s16 *stereo, int frames, int rate); /* interleaved left, right */

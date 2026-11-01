@@ -125,7 +125,7 @@ int hd_is_formatted(void)
 	const u8 *r = b + 0x1C0;
 	int tries;
 	for (tries = 0; tries < 3; tries++)
-		if (!plat_hd_read(BOOT_ADDR / SECTOR, b))
+		if (!plat_hd_read(0, BOOT_ADDR / SECTOR, b))
 			break;
 	if (tries == 3) {
 		plat_log("boot block unreadable\n");
@@ -181,7 +181,7 @@ int hd_format(u32 sectors)
 		cross ^= zone[3];
 		zone[0] = zone_check(zone);
 		for (s = 0; s < 2; s++)
-			if (plat_hd_write(map_addr / SECTOR + s * zones + z, zone))
+			if (plat_hd_write(0, map_addr / SECTOR + s * zones + z, zone))
 				return -1;
 	}
 
@@ -198,12 +198,12 @@ int hd_format(u32 sectors)
 	memcpy(dir + DIR_BYTES - 5, "Hugo", 4);
 	dir[DIR_BYTES - 1] = dir_check(dir);
 	for (s = 0; s < DIR_BYTES / SECTOR; s++)
-		if (plat_hd_write((map_addr + 2 * zones * SECTOR) / SECTOR + s, dir + s * SECTOR))
+		if (plat_hd_write(0, (map_addr + 2 * zones * SECTOR) / SECTOR + s, dir + s * SECTOR))
 			return -1;
 
 	memset(boot, 0, sizeof(boot));
 	put32(boot, 0x20000000u); /* empty defect list */
 	memcpy(boot + 0x1C0, rec, sizeof(rec));
 	boot[SECTOR - 1] = boot_check(boot);
-	return plat_hd_write(BOOT_ADDR / SECTOR, boot);
+	return plat_hd_write(0, BOOT_ADDR / SECTOR, boot);
 }
