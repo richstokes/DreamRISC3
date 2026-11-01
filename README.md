@@ -38,6 +38,15 @@ RISC OS 3.11 running natively on the Sega Dreamcast, built on KallistiOS.
 
 You need your own RISC OS 3.11 ROM. It is never committed. Default location is `../arculator-mac/roms/riscos311`; override with `ROM_DIR`.
 
+The directory needs these four 512KB chip dumps, named exactly as shown (`IC26.rom` really is lower case):
+
+| File | Size (bytes) | CRC32 | SHA-1 |
+| --- | --- | --- | --- |
+| `IC24.ROM` | 524288 | `c1adde84` | `12d060e0401dd0523d44453f947bdc55dd2c3240` |
+| `IC25.ROM` | 524288 | `15d89664` | `78f5d0e6f1e8ee603317807f53ff8fe65a3b3518` |
+| `IC26.rom` | 524288 | `a81ceb7c` | `46b870876bc1f68f242726415f0c49fef7be0c72` |
+| `IC27.ROM` | 524288 | `707b0c6c` | `345199a33fed23996374b9db8170a52ab63f0380` |
+
 The first build downloads bundled apps, pinned by hash, into `build/upstream/`. Lander's upstream repo has no licence, so like the ROM it stays out of this repo and images should not be published. Tertis is GPL-3.0-or-later and fetched the same way. See [apps/README.md](apps/README.md).
 
 Host tools: KallistiOS, Python 3, meson, ninja, pkg-config and libisofs (`brew install meson ninja pkg-config libisofs`). The disc-image tool mkdcdisc is vendored under [tools/mkdcdisc](tools/mkdcdisc/VENDOR.md) and built into `build/mkdcdisc/` on first run; set `MKDCDISC` to use another binary.
