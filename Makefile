@@ -98,6 +98,16 @@ $(DCOBJ)/interp.o: src/interp.c src/cpu.h
 	@mkdir -p $(DCOBJ)
 	$(KOS_CC) $(DCFLAGS) -O2 $(if $(HW_LOG),-DHW_LOG) -c $< -o $@
 
+# The build options are baked into these objects, so a change of options has to
+# rebuild them even though the sources did not change: a mach.o compiled without
+# ARM_INTERP next to a fresh interp.o leaves the image unable to run disc software.
+DC_OPTS = $(DCOBJ)/opts.$(INTERP).$(HW_LOG).$(HW_NO_SD).$(HW_NO_NET).$(HW_REPLAY).$(HW_DUMP).$(HW_AUTOFORMAT)
+$(DC_OPTS):
+	@mkdir -p $(DCOBJ)
+	@rm -f $(DCOBJ)/opts.*
+	@touch $@
+$(DCOBJ)/mach.o $(DCOBJ)/main.o $(DCOBJ)/interp.o: $(DC_OPTS)
+
 $(DCOBJ)/fdc.o: src/fdc.c src/cpu.h
 	@mkdir -p $(DCOBJ)
 	$(KOS_CC) $(DCFLAGS) -c $< -o $@
